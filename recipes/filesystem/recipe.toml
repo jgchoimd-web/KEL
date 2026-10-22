@@ -1,0 +1,44 @@
+[package]
+name = "filesystem"
+version = "0.1"
+revision = 0
+summary = "KEL base directory layout and essential files"
+license = "MIT"
+homepage = "https://github.com/jgchoimd-web/KEL"
+
+# No upstream source: the files come from recipes/filesystem/files/.
+# passwd/group/hosts follow LFS 12.4 chapter 7.6; os-release is KEL's own
+# (os-release(5): /etc/os-release is a relative symlink to /usr/lib/os-release).
+
+# Stage 3 entry: directory layout and essential files inside the new root.
+# Based on LFS 12.4 chapters 7.5 and 7.6, adapted to merged /usr with
+# bin and sbin merged (bin, sbin, lib, lib64 are already symlinks).
+# LFS's "chgrp utmp /var/log/lastlog" and the tester user are left out:
+# the bootstrap sandbox maps a single uid/gid, so other owners cannot be set.
+[bootstrap.stage3]
+script = '''
+mkdir -pv /{boot,home,mnt,opt,srv,media}
+mkdir -pv /etc/opt
+mkdir -pv /usr/lib/firmware /usr/lib/locale
+mkdir -pv /usr/{,local/}{include,src}
+mkdir -pv /usr/local/{bin,lib}
+ln -sfnv bin /usr/local/sbin
+mkdir -pv /usr/{,local/}share/{color,dict,doc,info,locale,man}
+mkdir -pv /usr/{,local/}share/{misc,terminfo,zoneinfo}
+mkdir -pv /usr/{,local/}share/man/man{1..8}
+mkdir -pv /var/{cache,local,log,mail,opt,spool}
+mkdir -pv /var/lib/{color,misc,locate}
+ln -sfnv /run /var/run
+ln -sfnv /run/lock /var/lock
+install -dv -m 0750 /root
+install -dv -m 1777 /var/tmp
+
+ln -sfnv /proc/self/mounts /etc/mtab
+install -m 0644 etc/passwd etc/group etc/hosts /etc/
+install -m 0644 usr/lib/os-release /usr/lib/os-release
+ln -sfnv ../usr/lib/os-release /etc/os-release
+
+touch /var/log/{btmp,lastlog,faillog,wtmp}
+chmod -v 664 /var/log/lastlog
+chmod -v 600 /var/log/btmp
+'''

@@ -218,13 +218,15 @@ def parse_recipe(path: Path, keydir: Path) -> Recipe:
     summary = _require_str(pw, pkg, "summary")
     homepage = _require_str(pw, pkg, "homepage")
 
+    # KEL's own packages (base filesystem, os-release, ...) have no upstream
+    # source; their files live in recipes/<name>/files/.
     raw_sources = data.get("source", [])
-    if not isinstance(raw_sources, list) or not raw_sources:
-        raise _fail(where, "at least one [[source]] is required")
+    if not isinstance(raw_sources, list):
+        raise _fail(where, "[[source]] must be an array of tables")
     sources = tuple(
         _parse_source(f"{where}: source[{i}]", raw, keydir) for i, raw in enumerate(raw_sources)
     )
-    if sources[0].dest is not None:
+    if sources and sources[0].dest is not None:
         raise _fail(where, "the first source is the main tree and cannot have 'dest'")
     names = [s.filename for s in sources]
     if len(set(names)) != len(names):

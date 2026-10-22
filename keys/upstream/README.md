@@ -16,7 +16,9 @@
 
 - GNU keyring: <https://ftp.gnu.org/gnu/gnu-keyring.gpg> (2026-10-22에 받음)
 - kernel.org pgpkeys: <https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/38DBBDC86092693E.asc>
-- 키는 `gpg --export --export-options export-minimal --armor <지문>`으로 내보냈다.
+- 키는 `gpg --armor --export <지문>`으로 **전체**를 내보낸다. `export-minimal`은 쓰지 않는다:
+  만료된 부키(subkey)가 빠지는데, glibc 2.44는 만료 표시된 서명 부키
+  (`FD19E6D31B192EE4DC63EAD3DC2B16215ED5412A`)로 서명되어 있어 검증이 실패했다(2026-10-22 확인).
 
 ## 만료 표시에 대하여
 

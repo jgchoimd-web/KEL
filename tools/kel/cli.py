@@ -55,7 +55,7 @@ def cmd_bootstrap(args: argparse.Namespace, layout: Layout) -> int:
         stage = load_stage(layout, args.stage)
         recipes = {s.recipe: load_recipe(layout.recipes, layout.upstream_keys, s.recipe)
                    for s in stage.steps}
-        verify_stage(layout, arch, stage, base_env(layout, arch, args.jobs, recipes))
+        verify_stage(layout, arch, stage, base_env(layout, arch, args.jobs, recipes, stage.root))
         return 0
     run_stage(layout, arch, args.stage, jobs=args.jobs, force=args.force, keep=args.keep,
               only=args.step, offline=args.offline)

@@ -23,13 +23,21 @@ from kel import __version__
 from kel.config import Arch, Layout
 from kel.fetch import fetch_recipe
 from kel.recipe import NAME_RE, PROFILE_RE, Recipe, load_recipe
-from kel.sandbox import bwrap_command, require_bwrap
+from kel.sandbox import bwrap_command, bwrap_root_command, require_bwrap
 from kel.util import KelError, Timer, format_duration, log
 
 # Fixed timestamp for builds until recipes carry their own (2026-01-01 UTC).
 SOURCE_DATE_EPOCH = "1767225600"
 
 SCRIPT_PRELUDE = "set +h\numask 022\nset -x\n"
+
+# Where the step's work directory appears inside a "sysroot" stage sandbox.
+INNER_WORKDIR = "/kel/build"
+
+# "host": run on the host with a read-only view of it (stages 1-2, which use
+# host tools to build the cross toolchain). "sysroot": the sysroot becomes /
+# (stage 3 onwards, nothing from the host is used).
+STAGE_ROOTS = ("host", "sysroot")
 
 
 @dataclass(frozen=True)
@@ -49,6 +57,7 @@ class Stage:
     steps: tuple[Step, ...]
     verify: str | None
     digest: str
+    root: str = "host"
 
 
 def load_stage(layout: Layout, name: str) -> Stage:
@@ -77,12 +86,16 @@ def load_stage(layout: Layout, name: str) -> Stage:
     if not steps:
         raise KelError(f"{path}: no steps")
     verify = data.get("verify", {}).get("script")
+    root = meta.get("root", "host")
+    if root not in STAGE_ROOTS:
+        raise KelError(f"{path}: stage root must be one of {', '.join(STAGE_ROOTS)}")
     return Stage(
         name=meta.get("name", name),
         summary=meta.get("summary", ""),
         steps=tuple(steps),
         verify=verify,
         digest=hashlib.sha256(raw_text).hexdigest(),
+        root=root,
     )
 
 
@@ -126,8 +139,19 @@ def _extract(archive: Path, into: Path) -> Path:
 
 
 def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
-    """Unpack the main source as workdir/src and extra sources inside it."""
+    """Unpack the main source as workdir/src and extra sources inside it.
+
+    A recipe without upstream sources (KEL's own packages such as the base
+    filesystem) gets a copy of its files/ directory instead.
+    """
     srcdir = workdir / "src"
+    if not recipe.sources:
+        files = recipe.path.parent / "files"
+        if files.is_dir():
+            shutil.copytree(files, srcdir, symlinks=True)
+        else:
+            srcdir.mkdir()
+        return srcdir
     main = _extract(paths[0], workdir)
     main.rename(srcdir)
     shutil.rmtree(main.parent, ignore_errors=True)
@@ -151,24 +175,30 @@ def step_key(stage: Stage, step: Step, recipe: Recipe, arch: Arch) -> str:
     return h.hexdigest()
 
 
-def base_env(layout: Layout, arch: Arch, jobs: int, recipes: dict[str, Recipe]) -> dict[str, str]:
-    sysroot = layout.sysroot(arch)
-    tools = layout.tools(arch)
+def base_env(layout: Layout, arch: Arch, jobs: int, recipes: dict[str, Recipe],
+             root: str = "host") -> dict[str, str]:
     env = {
-        "PATH": f"{tools}/bin:/usr/bin:/bin",
         "TERM": "dumb",
         "LC_ALL": "POSIX",
         "TZ": "UTC",
         "SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH,
         "MAKEFLAGS": f"-j{jobs}",
-        "CONFIG_SITE": f"{sysroot}/usr/share/config.site",
         "KEL_ARCH": arch.name,
         "KEL_TARGET": arch.triplet,
         "KEL_KERNEL_ARCH": arch.kernel_arch,
-        "KEL_SYSROOT": str(sysroot),
-        "KEL_TOOLS": str(tools),
         "KEL_JOBS": str(jobs),
     }
+    if root == "host":
+        sysroot = layout.sysroot(arch)
+        tools = layout.tools(arch)
+        env.update({
+            "PATH": f"{tools}/bin:/usr/bin:/bin",
+            "CONFIG_SITE": f"{sysroot}/usr/share/config.site",
+            "KEL_SYSROOT": str(sysroot),
+            "KEL_TOOLS": str(tools),
+        })
+    else:
+        env.update({"PATH": "/usr/bin:/usr/sbin", "HOME": "/root", "KEL_SYSROOT": "/"})
     for r in recipes.values():
         env[f"KEL_VERSION_{r.env_name}"] = r.version
     return env
@@ -187,14 +217,26 @@ def _tail(path: Path, lines: int = 40) -> str:
         return ""
 
 
-def run_script(layout: Layout, arch: Arch, script: str, workdir: Path, env: dict[str, str],
-               logfile: Path) -> None:
-    home = workdir / ".home"
-    home.mkdir(parents=True, exist_ok=True)
-    env = dict(env, HOME=str(home))
+def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path,
+               env: dict[str, str], logfile: Path) -> None:
+    """Run a step script in the sandbox; workdir/src (if any) is the start directory."""
     argv = ["/bin/bash", "-e", "-u", "-o", "pipefail", "-c", SCRIPT_PRELUDE + script]
-    cmd = bwrap_command(argv, chdir=Path(env.get("KEL_SRCDIR", workdir)), env=env,
-                        rw_binds=[layout.arch_root(arch)], sh_is_bash=True)
+    has_src = (workdir / "src").is_dir()
+    if root == "host":
+        home = workdir / ".home"
+        home.mkdir(parents=True, exist_ok=True)
+        env = dict(env, HOME=str(home), KEL_WORKDIR=str(workdir))
+        if has_src:
+            env["KEL_SRCDIR"] = str(workdir / "src")
+        cmd = bwrap_command(argv, chdir=workdir / "src" if has_src else workdir, env=env,
+                            rw_binds=[layout.arch_root(arch)], sh_is_bash=True)
+    else:
+        env = dict(env, KEL_WORKDIR=INNER_WORKDIR)
+        if has_src:
+            env["KEL_SRCDIR"] = f"{INNER_WORKDIR}/src"
+        cmd = bwrap_root_command(argv, root=layout.sysroot(arch),
+                                 chdir=env.get("KEL_SRCDIR", INNER_WORKDIR), env=env,
+                                 binds=[(workdir, INNER_WORKDIR)])
     rc = _run_logged(cmd, logfile)
     if rc != 0:
         raise KelError(f"failed (exit {rc}); log: {logfile}\n{_tail(logfile)}")
@@ -219,7 +261,7 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
     sources = {name: fetch_recipe(layout.sources, layout.upstream_keys, r, offline)
                for name, r in recipes.items()}
     prepare_sysroot(layout, arch)
-    env0 = base_env(layout, arch, jobs, recipes)
+    env0 = base_env(layout, arch, jobs, recipes, stage.root)
     stamps = layout.stamps(arch) / stage.name
     stamps.mkdir(parents=True, exist_ok=True)
 
@@ -239,13 +281,13 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
         workdir = layout.builds(arch) / stage.name / f"{step.recipe}-{step.profile}"
         shutil.rmtree(workdir, ignore_errors=True)
         workdir.mkdir(parents=True)
-        srcdir = unpack_sources(recipe, sources[step.recipe], workdir)
-        env = dict(env0, KEL_SRCDIR=str(srcdir), KEL_WORKDIR=str(workdir))
+        unpack_sources(recipe, sources[step.recipe], workdir)
         logfile = layout.logs(arch) / stage.name / f"{step.recipe}-{step.profile}.log"
         log(f"[{n}/{len(stage.steps)}] {step.label} {recipe.version}: building (log: {logfile})")
         with Timer() as t:
             try:
-                run_script(layout, arch, recipe.bootstrap[step.profile].script, workdir, env, logfile)
+                run_script(layout, arch, stage.root, recipe.bootstrap[step.profile].script,
+                           workdir, env0, logfile)
             except KelError as e:
                 raise KelError(f"{step.label}: {e}")
         stamp.write_text(json.dumps({"key": key, "version": recipe.pkgver,
@@ -266,6 +308,6 @@ def verify_stage(layout: Layout, arch: Arch, stage: Stage, env: dict[str, str]) 
     workdir.mkdir(parents=True)
     logfile = layout.logs(arch) / stage.name / "verify.log"
     log(f"verifying stage {stage.name} (log: {logfile})")
-    run_script(layout, arch, stage.verify, workdir, dict(env, KEL_WORKDIR=str(workdir)), logfile)
+    run_script(layout, arch, stage.root, stage.verify, workdir, env, logfile)
     log(f"stage {stage.name}: verification passed")
     print(_tail(logfile, 20))

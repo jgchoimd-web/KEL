@@ -36,6 +36,25 @@ def bwrap_command(argv: list[str], *, chdir: Path, env: dict[str, str],
     return cmd
 
 
+def bwrap_root_command(argv: list[str], *, root: Path, chdir: str, env: dict[str, str],
+                       binds: list[tuple[Path, str]], hostname: str = "kel-build") -> list[str]:
+    """Run argv with root as "/", as uid 0 inside a user namespace.
+
+    Used once the bootstrap sysroot has its own shell and toolchain (stage 3
+    onwards): nothing from the host is visible except the extra binds.
+    """
+    cmd = ["bwrap", "--die-with-parent", "--unshare-all", "--uid", "0", "--gid", "0",
+           "--hostname", hostname, "--bind", str(root), "/",
+           "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--tmpfs", "/run"]
+    for src, dst in binds:
+        cmd += ["--bind", str(src), dst]
+    cmd.append("--clearenv")
+    for key in sorted(env):
+        cmd += ["--setenv", key, env[key]]
+    cmd += ["--chdir", chdir, "--", *argv]
+    return cmd
+
+
 def require_bwrap() -> str:
     path = shutil.which("bwrap")
     if path is None:

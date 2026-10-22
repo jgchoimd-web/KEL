@@ -8,7 +8,7 @@ from pathlib import Path
 from kel.bootstrap import load_stage, prepare_sysroot, unpack_sources
 from kel.config import REPO_ROOT, Layout, get_arch
 from kel.recipe import Recipe, Source
-from kel.sandbox import bwrap_command
+from kel.sandbox import bwrap_command, bwrap_root_command
 from kel.util import KelError, version_at_least
 
 
@@ -60,6 +60,22 @@ class UnpackTests(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in work.iterdir()), ["src"])
 
 
+class NativeRecipeTests(unittest.TestCase):
+    def test_files_dir_becomes_source_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            rdir = tmp / "recipes" / "native"
+            (rdir / "files" / "etc").mkdir(parents=True)
+            (rdir / "files" / "etc" / "issue").write_text("KEL\n")
+            recipe = Recipe(name="native", version="1", revision=0, summary="s", license="MIT",
+                            homepage="https://example.org/", sources=(),
+                            path=rdir / "recipe.toml")
+            work = tmp / "work"
+            work.mkdir()
+            src = unpack_sources(recipe, [], work)
+            self.assertEqual((src / "etc" / "issue").read_text(), "KEL\n")
+
+
 class StageDefinitionTests(unittest.TestCase):
     def test_stage1_definition(self):
         layout = Layout.from_env()
@@ -70,6 +86,15 @@ class StageDefinitionTests(unittest.TestCase):
 
 
 class SandboxTests(unittest.TestCase):
+    def test_root_mode_hides_host(self):
+        cmd = bwrap_root_command(["/bin/true"], root=Path("/r"), chdir="/kel/build",
+                                 env={}, binds=[(Path("/w"), "/kel/build")])
+        self.assertEqual(cmd[cmd.index("--uid") + 1], "0")
+        i = cmd.index("/r")
+        self.assertEqual(cmd[i - 1:i + 2], ["--bind", "/r", "/"])
+        self.assertNotIn("--ro-bind", cmd)
+        self.assertIn("--unshare-all", cmd)
+
     def test_no_network_and_clean_env(self):
         cmd = bwrap_command(["/bin/true"], chdir=Path("/w"), env={"A": "1"},
                             rw_binds=[Path("/w")])
