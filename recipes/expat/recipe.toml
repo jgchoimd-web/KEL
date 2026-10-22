@@ -1,0 +1,20 @@
+[package]
+name = "expat"
+version = "2.9.0"
+revision = 0
+summary = "Stream-oriented XML parser library"
+license = "MIT"
+homepage = "https://libexpat.github.io/"
+
+[[source]]
+url = "https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz"
+sha256 = "1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051"
+signature = "https://github.com/libexpat/libexpat/releases/download/R_2_9_0/expat-2.9.0.tar.xz.asc"
+signing_keys = ["3176EF7DB2367F1FCA4F306B1F9B0E909AF37285"]  # Sebastian Pipping
+
+# Package. Based on LFS 13.1 chapter 8.43 (written for expat 2.8.3; 2.9.0
+# builds the same way). LFS's --docdir is dropped (unversioned docs) and the
+# optional HTML reference is not installed.
+[build]
+style = "gnu-configure"
+configure_args = ["--disable-static"]

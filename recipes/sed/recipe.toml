@@ -22,3 +22,12 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.34. The optional HTML manual
+# (make html) is not built. check = false: LFS runs the test suite as the
+# unprivileged tester user; the build sandbox has only uid 0. sed -i keeps
+# ACLs through libacl when present.
+[build]
+style = "gnu-configure"
+check = false
+depends = ["acl"]

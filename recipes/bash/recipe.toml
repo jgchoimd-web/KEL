@@ -150,3 +150,23 @@ make
 make DESTDIR="$KEL_SYSROOT" install
 ln -sv bash "$KEL_SYSROOT/bin/sh"
 '''
+
+# Package. Based on LFS 13.1 chapter 8.39, plus the official upstream patches
+# bash53-001..020 (applied like the stage 2 profile does). LFS's --docdir is
+# dropped (unversioned docs). check = false: the test suite must run as a
+# non-root user who owns the terminal (LFS runs it as tester through
+# expect); the build sandbox has only uid 0. The package owns /usr/bin/sh
+# (KEL policy; LFS creates that link in chapter 6).
+[build]
+style = "gnu-configure"
+check = false
+depends = ["readline", "ncurses"]
+configure_args = ["--without-bash-malloc", "--with-installed-readline"]
+prepare = '''
+for p in "$KEL_SOURCEDIR"/bash53-*; do
+  patch -p0 -i "$p"
+done
+'''
+post_install = '''
+ln -sv bash "$DESTDIR"/usr/bin/sh
+'''

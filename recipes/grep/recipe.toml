@@ -22,3 +22,13 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.38. grep -P uses pcre2.
+[build]
+style = "gnu-configure"
+depends = ["pcre2"]
+prepare = '''
+# LFS: drop the "egrep/fgrep is obsolescent" warning, which makes the tests
+# of some packages fail.
+sed -i "s/echo/#echo/" src/egrep.sh
+'''

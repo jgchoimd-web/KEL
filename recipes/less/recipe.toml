@@ -1,0 +1,24 @@
+[package]
+name = "less"
+version = "710"
+revision = 0
+summary = "Terminal pager"
+# Dual licensed: GPL version 3 or later, or the Less License (a BSD-2-Clause
+# variant without an SPDX identifier; text in LICENSE).
+license = "GPL-3.0-or-later OR LicenseRef-Less"
+homepage = "https://www.greenwoodsoftware.com/less/"
+
+[[source]]
+url = "https://www.greenwoodsoftware.com/less/less-710.tar.gz"
+sha256 = "d1008fb78dcae1323ddab664bcb352a61f022b1b131bd8018548e021d975ec7a"
+signature = "https://www.greenwoodsoftware.com/less/less-710.sig"
+signing_keys = ["AE27252BD6846E7D6EAE1DD6F153A7C833235259"]  # Mark Nudelman
+
+# Package. Based on LFS 13.1 chapter 8.45 (written for less 704); LFS's
+# --sysconfdir=/etc is one of kel's default arguments. Since 710 there is no
+# lesskey program (lesskey(5) documents the key file format), and lessecho
+# and less-osc8-open are installed into /usr/libexec (upstream's default
+# libexecdir, compiled into less). The test suite (lesstest) uses perl.
+[build]
+style = "gnu-configure"
+depends = ["ncurses", "perl"]

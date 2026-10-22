@@ -20,3 +20,17 @@ script = '''
 make
 cp -v gettext-tools/src/{msgfmt,msgmerge,xgettext} /usr/bin
 '''
+
+# Package. Based on LFS 13.1 chapter 8.36. LFS's --docdir is dropped
+# (unversioned docs). The license directory is filled here because the LGPL
+# text (libintl, libasprintf) is not at the top of the source tree (kel only
+# copies the top-level COPYING* files). libtextstyle uses ncurses; ACL
+# support comes from acl.
+[build]
+style = "gnu-configure"
+configure_args = ["--disable-static"]
+depends = ["ncurses", "acl"]
+post_install = '''
+chmod -v 0755 "$DESTDIR"/usr/lib/preloadable_libintl.so
+install -vDm644 -t "$DESTDIR"/usr/share/licenses/gettext COPYING gettext-runtime/intl/COPYING.LIB
+'''

@@ -1,0 +1,20 @@
+[package]
+name = "gdbm"
+version = "1.26"
+revision = 0
+summary = "GNU database manager library"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/gdbm/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/gdbm/gdbm-1.26.tar.gz"
+sha256 = "6a24504a14de4a744103dcb936be976df6fbe88ccff26065e54c1c47946f4a5e"
+signature = "https://ftp.gnu.org/gnu/gdbm/gdbm-1.26.tar.gz.sig"
+signing_keys = ["4BE4E62655488EB92ABB468F79FFD94BFCE230B1"]  # Sergey Poznyakoff
+
+# Package. Based on LFS 13.1 chapter 8.41. gdbmtool uses readline when it
+# is present (configure default).
+[build]
+style = "gnu-configure"
+configure_args = ["--disable-static", "--enable-libgdbm-compat"]
+depends = ["readline"]

@@ -5,6 +5,7 @@ revision = 0
 summary = "GNU parser generator"
 license = "GPL-3.0-or-later"
 homepage = "https://www.gnu.org/software/bison/"
+depends = ["m4"]  # bison runs m4 at run time
 
 # Signed with a DSA-1024 key over a SHA-1 digest (weak by today's standards);
 # the sha256 pin is the primary check. Matches the bison-announce post.
@@ -22,3 +23,12 @@ script = '''
 make
 make install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.37. LFS's --docdir is dropped
+# (unversioned docs). liby.a (the POSIX yacc library, which has no shared
+# variant) is kept, as in LFS. bison runs m4 at run time ([package]
+# depends); libtextstyle (gettext) gives colored diagnostics; flex, perl and
+# readline are only used by the test suite.
+[build]
+style = "gnu-configure"
+depends = ["m4", "gettext", "flex", "perl", "readline"]

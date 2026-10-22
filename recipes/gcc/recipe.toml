@@ -135,3 +135,74 @@ rm -rf "$KEL_SYSROOT/usr/lib/gcc/$KEL_TARGET/$KEL_VERSION_GCC/include-fixed"
 make DESTDIR="$KEL_SYSROOT" install
 ln -sfv gcc "$KEL_SYSROOT/usr/bin/cc"
 '''
+
+# Package. Based on LFS 13.1 chapter 8.32. KEL deviations:
+# - --build="$KEL_TARGET" keeps the x86_64-kel-linux-gnu triplet of the
+#   stage 1-2 compilers (LFS's native GCC gets config.guess's triplet).
+# - The GMP, MPFR and MPC trees that kel unpacks from the extra sources (for
+#   the bootstrap profiles) are removed, so GCC links the system libraries
+#   built earlier in stage 3b, as in LFS chapter 8.
+# - kel's default --sysconfdir/--localstatedir/... are not passed: GCC
+#   installs nothing there and its mandir/infodir defaults are the same.
+# - Tests: LFS runs `make -k check` as the tester user after raising the hard
+#   stack limit; here it runs as the sandbox's root, where raising a hard
+#   limit is not permitted (allowed to fail). The results are only reported
+#   (LFS 13.1 lists known failures; compare with
+#   https://www.linuxfromscratch.org/lfs/build-logs/13.1/): a test failure
+#   never fails the build.
+# - LFS's chown of the installed headers is not needed (all files are root's)
+#   and its toolchain sanity checks run in stage 3b's [verify] script.
+# - The package also ships /usr/bin/cc (LFS keeps the link from chapter 6;
+#   here the stage 2 profile created it in the sysroot).
+# GCC's static archives (libgcc.a, libstdc++.a, ...) are kept, as in LFS.
+[build]
+style = "gnu-configure"
+depends = ["gmp", "mpfr", "mpc", "zlib", "zstd", "dejagnu", "expect", "tcl"]
+prepare = '''
+case "$KEL_ARCH" in
+  x86_64)
+    # KEL keeps 64-bit libraries in /usr/lib, not lib64 (DESIGN.md 4.7).
+    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+    ;;
+esac
+rm -rf gmp mpfr mpc
+'''
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr \
+             --build="$KEL_TARGET" \
+             LD=ld \
+             --enable-languages=c,c++ \
+             --enable-default-pie \
+             --enable-default-ssp \
+             --enable-host-pie \
+             --enable-targets=all \
+             --disable-multilib \
+             --disable-bootstrap \
+             --disable-fixincludes \
+             --with-system-zlib
+'''
+test = '''
+cd build
+ulimit -s -H unlimited || true
+make -k check || true
+../contrib/test_summary -t || true
+'''
+post_install = '''
+cd "$DESTDIR"
+gcc_version=$(cat "$KEL_SRCDIR/gcc/BASE-VER")
+# FHS link (LFS: ln -svr /usr/bin/cpp /usr/lib).
+ln -sv ../bin/cpp usr/lib/cpp
+ln -sv gcc usr/bin/cc
+ln -sv gcc.1 usr/share/man/man1/cc.1
+# LTO plugin for binutils
+# (LFS: ln -sfvr $(gcc -print-prog-name=liblto_plugin.so) /usr/lib/bfd-plugins/).
+plugin="libexec/gcc/$KEL_TARGET/$gcc_version/liblto_plugin.so"
+test -f "usr/$plugin"
+mkdir -pv usr/lib/bfd-plugins
+ln -sv "../../$plugin" usr/lib/bfd-plugins/liblto_plugin.so
+# Misplaced file (LFS): libstdc++'s gdb pretty-printer hook.
+mkdir -pv usr/share/gdb/auto-load/usr/lib
+mv -v usr/lib/*gdb.py usr/share/gdb/auto-load/usr/lib
+'''

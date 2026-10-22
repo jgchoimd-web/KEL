@@ -23,3 +23,21 @@ sed -i 's/extras//' Makefile.in
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.31. LFS's `rm -f /usr/bin/gawk-5.4.1`
+# is not needed (it only matters when installing over the chapter 6 gawk;
+# kel installs into an empty DESTDIR) and the optional extra documentation
+# is not installed. check = false: LFS runs the test suite as the
+# unprivileged tester user (some tests fail as root); the build sandbox has
+# only uid 0. gawk uses MPFR/GMP (-M) and readline (debugger) when present.
+[build]
+style = "gnu-configure"
+check = false
+depends = ["gmp", "mpfr", "readline"]
+prepare = '''
+# Do not install the extras (profile.d scripts gawk.sh and gawk.csh).
+sed -i 's/extras//' Makefile.in
+'''
+post_install = '''
+ln -sv gawk.1 "$DESTDIR"/usr/share/man/man1/awk.1
+'''

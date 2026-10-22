@@ -40,3 +40,32 @@ make DESTDIR="$KEL_SYSROOT" install
 ln -sv libncursesw.so "$KEL_SYSROOT/usr/lib/libncurses.so"
 sed -e 's/^#if.*XOPEN.*$/#if 1/' -i "$KEL_SYSROOT/usr/include/curses.h"
 '''
+
+# Package. Based on LFS 13.1 chapter 8.33. LFS installs into a staging
+# directory and copies it over / (to replace the running shell's
+# libncursesw safely); kel installs into DESTDIR anyway, so this is a plain
+# DESTDIR install with LFS's curses.h edit and compatibility links made in
+# DESTDIR. check = false: the programs in test/ only run against an
+# installed ncurses (LFS does not run them either). The optional
+# documentation and the ABI 5 libraries are not installed.
+[build]
+style = "gnu-configure"
+check = false
+configure_args = [
+    "--with-shared",
+    "--without-debug",
+    "--without-normal",
+    "--with-cxx-shared",
+    "--enable-pc-files",
+    "--with-pkg-config-libdir=/usr/lib/pkgconfig",
+]
+post_install = '''
+# Always use the wide-character ABI (the links below depend on it).
+sed -e 's/^#if.*XOPEN.*$/#if 1/' -i "$DESTDIR"/usr/include/curses.h
+# Programs that link the non-wide libraries get the wide ones.
+for lib in ncurses form panel menu; do
+    ln -sfv lib${lib}w.so "$DESTDIR"/usr/lib/lib${lib}.so
+    ln -sfv ${lib}w.pc "$DESTDIR"/usr/lib/pkgconfig/${lib}.pc
+done
+ln -sfv libncursesw.so "$DESTDIR"/usr/lib/libcurses.so
+'''

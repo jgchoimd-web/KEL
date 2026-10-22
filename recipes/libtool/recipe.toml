@@ -1,0 +1,24 @@
+[package]
+name = "libtool"
+version = "2.6.2"
+revision = 0
+summary = "GNU generic library support script"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://www.gnu.org/software/libtool/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/libtool/libtool-2.6.2.tar.xz"
+sha256 = "2ef1067c16c97db930fd740cc9bc3d3ba9a583804ae5ac42cc3e8719e49e191e"
+signature = "https://ftp.gnu.org/gnu/libtool/libtool-2.6.2.tar.xz.sig"
+signing_keys = ["FA26CA784BE188927F22B99F6570EA01146F7354"]  # Ileana Dumitrescu
+
+# Package. Based on LFS 13.1 chapter 8.40. As in LFS, libltdl.a is built
+# (the test suite uses it) and removed after the installation. The license
+# directory is filled here because libltdl's LGPL text is not at the top of
+# the source tree (kel only copies the top-level COPYING* files).
+[build]
+style = "gnu-configure"
+post_install = '''
+rm -fv "$DESTDIR"/usr/lib/libltdl.a
+install -vDm644 -t "$DESTDIR"/usr/share/licenses/libtool COPYING libltdl/COPYING.LIB
+'''
