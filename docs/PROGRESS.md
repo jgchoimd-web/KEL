@@ -22,7 +22,7 @@
 | host-tools | 완료 | apk-tools 3.0.8 (호스트용 패키징 도구) 9초 |
 | stage 1 크로스 툴체인 | **완료·검증** | binutils 1m17s, GCC pass 1 13m59s, 헤더 8s, glibc 4m29s, libstdc++ 1m06s (합계 약 21분) |
 | stage 2 임시 도구 | **완료·검증** | 레시피 17개 (LFS 13.1 6장). GCC pass 2 21분, 나머지 16개 합계 11분. `STAGE2 VERIFY OK` |
-| stage 3a 격리 환경 진입 (LFS 7장) | 빌드 중 | 레시피 9개: filesystem, gettext, bison, perl, zlib, mpdecimal, python, texinfo, util-linux |
+| stage 3a 격리 환경 진입 (LFS 7장) | **완료·검증** | 10단계 약 20분: gettext 5m12s, python 5m47s, perl 3m06s, util-linux 2m38s, texinfo 2m01s. 호스트가 전혀 보이지 않는 루트에서 C 컴파일·실행, Python(zlib·decimal)·Perl 동작 확인. `STAGE3A VERIFY OK` |
 | stage 3b 최종 패키지 (LFS 8장) | 레시피 작성 중 | 77단계(`bootstrap/stage3b.toml`), 서브에이전트 5개가 나눠 작성 |
 | stage 4 셀프 호스팅 | 도구 작성 중 | KEL의 apk로 빌드 루트를 만들어 전체 재빌드하는 기능 (서브에이전트) |
 | stage 5 재현성 비교 | 도구 작성 중 | 두 저장소의 패키지를 풀어 비교하는 `kel compare` (서브에이전트) |
@@ -33,11 +33,11 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
 
 ## 다음에 할 일
 
-1. stage 3a 완료와 검증
-2. stage 3b: 서브에이전트가 쓴 레시피를 검토·커밋하고 77단계를 빌드해 첫 apk 저장소 생성
-3. stage 4: stage 3b 패키지만으로 만든 빌드 루트에서 전체 재빌드 (KEL의 apk 사용)
-4. stage 5: 재빌드 결과 비교 보고서
-5. Phase 3 준비: 부팅 이미지 조사 결과(서브에이전트)를 바탕으로 커널·systemd-boot·이미지 도구 레시피
+1. stage 3b: 서브에이전트가 쓴 레시피를 검토·커밋하고 77단계를 빌드해 첫 apk 저장소 생성
+   (레시피가 준비된 앞부분부터 `--until`로 먼저 빌드 중)
+2. stage 4: stage 3b 패키지만으로 만든 빌드 루트에서 전체 재빌드 (KEL의 apk 사용)
+3. stage 5: 재빌드 결과 비교 보고서
+4. Phase 3 준비: 부팅 이미지 조사 결과(서브에이전트)를 바탕으로 커널·systemd-boot·이미지 도구 레시피
 
 ## 세션 기록
 
@@ -87,3 +87,7 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
 - GCC pass 2를 13.1 옵션으로 다시 빌드할 때 설치까지 끝난 뒤 마지막 `ln -sv gcc .../usr/bin/cc`만 실패했다
   (첫 빌드가 만든 링크가 이미 있음). 레시피를 `ln -sfv`로 고치고, 결과물이 고친 레시피의 결과와 같으므로
   21분 재빌드 대신 그 단계의 스탬프를 새 키로 기록했다(스탬프에 사유를 남김). 이후 `STAGE2 VERIFY OK`.
+- stage 3a 완료·검증. util-linux 설치 단계의 `chgrp tty`가 단일 uid 샌드박스에서 실패해서
+  util-linux 자체 옵션 `--disable-makeinstall-chown`으로 해결했다(같은 내용을 레시피 지침에 추가).
+- `kel bootstrap --until <단계>`: 레시피가 아직 다 준비되지 않은 단계에서 앞부분만 먼저 빌드한다
+  (검증은 건너뜀, 같은 단계 이름의 스탬프를 쓰므로 나중에 전체를 돌리면 이어서 진행).

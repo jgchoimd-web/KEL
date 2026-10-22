@@ -58,7 +58,7 @@ def cmd_bootstrap(args: argparse.Namespace, layout: Layout) -> int:
         verify_stage(layout, arch, stage, base_env(layout, arch, args.jobs, recipes, stage.root))
         return 0
     run_stage(layout, arch, args.stage, jobs=args.jobs, force=args.force, keep=args.keep,
-              only=args.step, offline=args.offline)
+              only=args.step, until=args.until, offline=args.offline)
     return 0
 
 
@@ -99,6 +99,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force", action="store_true", help="rebuild steps even if up to date")
     s.add_argument("--keep", action="store_true", help="keep build directories")
     s.add_argument("--step", help="run only this step (recipe:profile)")
+    s.add_argument("--until", help="run the steps up to and including this one (recipe:profile), "
+                                   "without the stage verification")
     s.add_argument("--offline", action="store_true", help="only use the download cache")
     s.add_argument("--verify-only", action="store_true", help="only run the stage verification")
     s.set_defaults(func=cmd_bootstrap)

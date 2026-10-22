@@ -9,6 +9,7 @@ interrupted bootstrap resumes where it stopped.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -334,11 +335,23 @@ def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path
 
 
 def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: bool = False,
-              keep: bool = False, only: str | None = None, offline: bool = False) -> None:
+              keep: bool = False, only: str | None = None, until: str | None = None,
+              offline: bool = False) -> None:
+    """Run a stage's steps in order (resuming), then its verification.
+
+    only: run just this step. until: run the steps up to and including this
+    one and skip the verification; later steps' recipes need not exist yet.
+    """
     if os.geteuid() == 0 and not os.environ.get("KEL_ALLOW_ROOT"):
         raise KelError("refusing to build as root; run kel as an unprivileged user")
     require_bwrap()
     stage = load_stage(layout, stage_name)
+    if until:
+        labels = [s.label for s in stage.steps]
+        if until not in labels:
+            raise KelError(f"stage {stage.name} has no step {until}")
+        stage = dataclasses.replace(stage, steps=stage.steps[:labels.index(until) + 1],
+                                    verify=None)
     recipes: dict[str, Recipe] = {}
     for step in stage.steps:
         if step.recipe not in recipes:
