@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kel.elf import read_elf
+from kel.elf import read_elf, read_sections
 
 
 @unittest.skipUnless(shutil.which("cc"), "no C compiler")
@@ -39,6 +39,13 @@ class ElfTests(unittest.TestCase):
 
     def test_not_elf(self):
         self.assertIsNone(read_elf(self.tmp / "lib.c"))
+        self.assertIsNone(read_sections((self.tmp / "lib.c").read_bytes()))
+
+    def test_sections(self):
+        sections = {s.name: s for s in read_sections((self.tmp / "prog").read_bytes())}
+        self.assertIn(".text", sections)
+        self.assertIn(".dynamic", sections)
+        self.assertGreater(sections[".text"].size, 0)
 
 
 if __name__ == "__main__":

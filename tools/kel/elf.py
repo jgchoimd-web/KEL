@@ -1,8 +1,9 @@
-"""Minimal ELF reader: interpreter, SONAME, NEEDED, RPATH/RUNPATH.
+"""Minimal ELF reader: interpreter, SONAME, NEEDED, RPATH/RUNPATH, sections.
 
 Used when packaging to derive "so:" provides/depends automatically (the
-apk convention) and to check for build-path leaks. Only the standard
-library is used, so it works on any architecture's binaries.
+apk convention) and to check for build-path leaks, and by `kel compare` to
+name the sections in which two builds of a binary differ. Only the
+standard library is used, so it works on any architecture's binaries.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from pathlib import Path
 ELF_MAGIC = b"\x7fELF"
 PT_INTERP = 3
 SHT_DYNAMIC = 6
+SHT_NOBITS = 8
 DT_NEEDED, DT_SONAME, DT_RPATH, DT_RUNPATH = 1, 14, 15, 29
 ET_EXEC, ET_DYN = 2, 3
 
@@ -30,6 +32,14 @@ class ElfInfo:
     runpath: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class ElfSection:
+    name: str
+    type: int
+    offset: int
+    size: int
+
+
 def is_elf(path: Path) -> bool:
     try:
         with open(path, "rb") as f:
@@ -38,24 +48,49 @@ def is_elf(path: Path) -> bool:
         return False
 
 
-def read_elf(path: Path) -> ElfInfo | None:
-    """Return dynamic-linking information, or None if path is not ELF."""
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return None
+def _header(data: bytes) -> tuple | None:
+    """(class, endian, header fields after e_ident) or None if not ELF."""
     if len(data) < 52 or data[:4] != ELF_MAGIC:
         return None
     cls = {1: 32, 2: 64}.get(data[4])
     endian = {1: "<", 2: ">"}.get(data[5])
     if cls is None or endian is None:
         return None
-    if cls == 64:
-        hdr = struct.unpack_from(endian + "HHIQQQIHHHHHH", data, 16)
-        etype, machine, _, _, phoff, shoff, _, _, phentsize, phnum, shentsize, shnum, _ = hdr
-    else:
-        hdr = struct.unpack_from(endian + "HHIIIIIHHHHHH", data, 16)
-        etype, machine, _, _, phoff, shoff, _, _, phentsize, phnum, shentsize, shnum, _ = hdr
+    fmt = endian + ("HHIQQQIHHHHHH" if cls == 64 else "HHIIIIIHHHHHH")
+    if len(data) < 16 + struct.calcsize(fmt):
+        return None
+    # etype, machine, version, entry, phoff, shoff, flags, ehsize,
+    # phentsize, phnum, shentsize, shnum, shstrndx
+    return cls, endian, struct.unpack_from(fmt, data, 16)
+
+
+def _section_headers(data: bytes, cls: int, endian: str, shoff: int, shentsize: int,
+                     shnum: int) -> list[tuple[int, int, int, int, int, int]]:
+    """(name offset, type, offset, size, link, entsize) of each section header."""
+    fmt = endian + ("IIQQQQIIQQ" if cls == 64 else "IIIIIIIIII")
+    step = max(shentsize, struct.calcsize(fmt))
+    headers = []
+    for i in range(shnum):
+        off = shoff + i * shentsize
+        if off + step > len(data):
+            break
+        name, sh_type, _, _, sh_offset, sh_size, sh_link, _, _, sh_entsize = struct.unpack_from(
+            fmt, data, off)
+        headers.append((name, sh_type, sh_offset, sh_size, sh_link, sh_entsize))
+    return headers
+
+
+def read_elf(path: Path) -> ElfInfo | None:
+    """Return dynamic-linking information, or None if path is not ELF."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    header = _header(data)
+    if header is None:
+        return None
+    cls, endian, fields = header
+    etype, machine, _, _, phoff, shoff, _, _, phentsize, phnum, shentsize, shnum, _ = fields
     info = ElfInfo(elf_class=cls, machine=machine, etype=etype)
 
     # Program headers: the requested interpreter.
@@ -71,18 +106,7 @@ def read_elf(path: Path) -> ElfInfo | None:
             info.interpreter = data[p_offset:p_offset + p_filesz].split(b"\0", 1)[0].decode(errors="replace")
 
     # Section headers: .dynamic and its string table (sh_link).
-    sections = []
-    for i in range(shnum):
-        off = shoff + i * shentsize
-        if off + shentsize > len(data):
-            break
-        if cls == 64:
-            _, sh_type, _, _, sh_offset, sh_size, sh_link, _, _, sh_entsize = struct.unpack_from(
-                endian + "IIQQQQIIQQ", data, off)
-        else:
-            _, sh_type, _, _, sh_offset, sh_size, sh_link, _, _, sh_entsize = struct.unpack_from(
-                endian + "IIIIIIIIII", data, off)
-        sections.append((sh_type, sh_offset, sh_size, sh_link, sh_entsize))
+    sections = [h[1:] for h in _section_headers(data, cls, endian, shoff, shentsize, shnum)]
     for sh_type, sh_offset, sh_size, sh_link, _ in sections:
         if sh_type != SHT_DYNAMIC or sh_link >= len(sections):
             continue
@@ -108,3 +132,20 @@ def read_elf(path: Path) -> ElfInfo | None:
                 info.runpath.extend(p for p in string(val).split(":") if p)
         break
     return info
+
+
+def read_sections(data: bytes) -> list[ElfSection] | None:
+    """Section headers with their names (from e_shstrndx), or None if not ELF."""
+    header = _header(data)
+    if header is None:
+        return None
+    cls, endian, fields = header
+    shoff, shentsize, shnum, shstrndx = fields[5], fields[10], fields[11], fields[12]
+    headers = _section_headers(data, cls, endian, shoff, shentsize, shnum)
+    names = b""
+    if shstrndx < len(headers):
+        _, _, str_off, str_size, _, _ = headers[shstrndx]
+        names = data[str_off:str_off + str_size]
+    return [ElfSection(name=names[name:].split(b"\0", 1)[0].decode(errors="replace"),
+                       type=sh_type, offset=sh_offset, size=sh_size)
+            for name, sh_type, sh_offset, sh_size, _, _ in headers]

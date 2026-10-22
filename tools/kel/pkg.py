@@ -5,6 +5,9 @@ check the packaging policy, create .apk files with `apk mkpkg` and update
 the repository index with `apk mkndx`. Packaging runs as uid 0 inside a
 user namespace so that file owners are recorded as root (apk stores owner
 names, resolved through the root's /etc/passwd).
+
+Reading packages back (for `kel sbom` and `kel compare`) also goes through
+apk itself: `apk adbdump` for the metadata and `apk extract` for the files.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -253,3 +257,127 @@ def install_into_root(parts: list[PackagePart], root: Path) -> None:
     for part in parts:
         subprocess.run(["cp", "-a", "--remove-destination", f"{part.root}/.", f"{root}/"],
                        check=True)
+
+
+# Reading packages back. The v3 format is only documented through apk's own
+# code (DESIGN.md 4.2), so kel never parses .apk files itself.
+
+APK_ENV = {"PATH": "/usr/bin:/bin"}
+
+# File types in a v3 file's "target" field (src/extract_v3.c in apk-tools).
+_TARGET_TYPES = {stat.S_IFLNK: "symlink", stat.S_IFREG: "hardlink", stat.S_IFCHR: "char",
+                 stat.S_IFBLK: "block", stat.S_IFIFO: "fifo"}
+
+
+@dataclass(frozen=True)
+class PackageEntry:
+    """One path of a package as its metadata records it."""
+
+    type: str  # dir, file, hardlink, symlink, char, block or fifo
+    mode: int  # permission bits including setuid/setgid/sticky
+    owner: str  # "user:group"; apk stores names, not ids
+    size: int = 0
+    digest: str = ""  # content hash (hex) of regular files: sha256 in v3 packages
+    target: str = ""  # symlink target, hard link target (absolute) or device number
+    mtime: int = 0
+    xattrs: tuple[str, ...] = ()
+
+
+def package_metadata(apk: Path, package: Path) -> dict:
+    """The metadata block of a .apk file as `apk adbdump --format json` shows it.
+
+    "info" holds the package fields (name, version, license, depends, ...)
+    and "paths" every directory and file with mode, owner, size, mtime,
+    content hash and link target (apk-package(5), apk-v3(5)).
+    """
+    proc = subprocess.run([str(apk), "adbdump", "--format", "json", str(package)],
+                          capture_output=True, env=APK_ENV)
+    if proc.returncode != 0:
+        raise KelError(f"apk adbdump {package.name} failed: "
+                       f"{proc.stderr.decode(errors='replace').strip()}")
+    try:
+        # apk escapes only quotes, backslashes, newlines and tabs: strict=False
+        # takes other control characters, surrogateescape non-UTF-8 file names.
+        data = json.loads(proc.stdout.decode("utf-8", "surrogateescape"), strict=False)
+    except ValueError as e:
+        raise KelError(f"apk adbdump {package.name}: cannot parse the output: {e}")
+    if not isinstance(data, dict) or not isinstance(data.get("info"), dict):
+        raise KelError(f"{package.name} is not an apk v3 package")
+    return data
+
+
+def _acl(acl: dict) -> tuple[int, str, tuple[str, ...]]:
+    return (int(acl.get("mode", 0)), f"{acl.get('user', '')}:{acl.get('group', '')}",
+            tuple(acl.get("xattrs", ())))
+
+
+def package_entries(meta: dict) -> dict[str, PackageEntry]:
+    """Every path of a package (absolute, "/" for the root) from its metadata."""
+    entries: dict[str, PackageEntry] = {}
+    for d in meta.get("paths", []):
+        dirname = d.get("name", "")
+        mode, owner, xattrs = _acl(d.get("acl", {}))
+        entries["/" + dirname] = PackageEntry("dir", mode, owner, xattrs=xattrs)
+        for f in d.get("files", []):
+            path = f"/{dirname}/{f['name']}" if dirname else f"/{f['name']}"
+            mode, owner, xattrs = _acl(f.get("acl", {}))
+            kind, target = "file", ""
+            if "target" in f:
+                # A 16-bit little-endian file type, then the link target or a
+                # 64-bit device number.
+                raw = bytes.fromhex(f["target"])
+                ftype = stat.S_IFMT(int.from_bytes(raw[:2], "little"))
+                kind = _TARGET_TYPES.get(ftype, f"type-{ftype:o}")
+                if kind in ("symlink", "hardlink"):
+                    target = raw[2:].decode("utf-8", "surrogateescape")
+                    if kind == "hardlink":
+                        target = "/" + target
+                else:
+                    target = str(int.from_bytes(raw[2:], "little"))
+            entries[path] = PackageEntry(kind, mode, owner, size=int(f.get("size", 0)),
+                                         digest=f.get("hash", ""), target=target,
+                                         mtime=int(f.get("mtime", 0)), xattrs=xattrs)
+    return entries
+
+
+def _make_accessible(root: Path) -> None:
+    """Let the caller read and delete an unpacked tree (0555 directories, 0000 files)."""
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        os.chmod(d, stat.S_IMODE(os.lstat(d).st_mode) | stat.S_IRWXU)
+        with os.scandir(d) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    mode = entry.stat(follow_symlinks=False).st_mode
+                    if not mode & stat.S_IRUSR:
+                        os.chmod(entry.path, stat.S_IMODE(mode) | stat.S_IRUSR)
+
+
+def extract_package(apk: Path, package: Path, dest: Path) -> None:
+    """Unpack the files of a package into dest with `apk extract`.
+
+    Nothing is installed and no scripts run. apk runs as uid 0 in a user
+    namespace, with CAP_DAC_OVERRIDE inside it so that read-only directories
+    in the package do not stop the extraction, and with --no-chown because
+    only the caller's own uid is mapped (owners come from the metadata
+    instead). Signatures are not checked, since the packages being compared
+    may be signed with different keys, but apk still checks every file
+    against the hashes in the metadata. Afterwards the caller can read and
+    delete everything under dest: owner read is added to files and owner
+    rwx to directories; the real modes are in the metadata.
+    """
+    apk, package = apk.resolve(), package.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    dest = dest.resolve()
+    argv = [str(apk), "--allow-untrusted", "extract", "--no-chown", "--destination", str(dest),
+            str(package)]
+    cmd = bwrap_command(argv, chdir=dest, env=APK_ENV, rw_binds=[dest],
+                        ro_binds=sorted({apk.parent, package.parent}), as_root=True,
+                        cap_add=["CAP_DAC_OVERRIDE"])
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise KelError(f"apk extract {package.name} failed: {(proc.stdout + proc.stderr).strip()}")
+    _make_accessible(dest)

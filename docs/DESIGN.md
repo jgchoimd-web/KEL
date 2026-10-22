@@ -508,6 +508,30 @@ unconfined). 1.0은 permissive로 시작하고 정책이 안정되면 enforcing�
 - NVD 점수에 의존하지 않는다(2026-04-15부터 NIST는 KEV·연방·핵심 소프트웨어 CVE만 우선
   보강하고 나머지는 "예정 없음"으로 둠).
 
+**SBOM 형식 (`kel sbom`, 구현됨):** 빌드된 바이너리 패키지마다 SPDX 3.0.1 JSON-LD 문서 하나를
+`work/<arch>/repo/sbom/<패키지>-<버전>-r<리비전>.spdx.json`에 쓴다. 입력은 레시피(이름, 버전, 라이선스,
+홈페이지, 소스 URL·sha256·서명, 패치), 패키징 때 남긴 매니페스트(파일 목록), `.apk` 파일 자체(sha256,
+build-time, 파일별 sha256은 `apk adbdump`로 읽음)다. 셋의 버전·라이선스·파일 목록이 서로 맞지 않으면 만들지 않는다.
+요소 이름과 관계 방향은 명세(<https://spdx.github.io/spdx-spec/v3.0.1/>)와 JSON-LD 컨텍스트에서 확인했다.
+
+| 대상 | SPDX 3.0.1 표현 | 메모 |
+|---|---|---|
+| 문서 | `SpdxDocument` → rootElement `software_Sbom`(sbomType `build`) → rootElement 바이너리 패키지 | `Sbom`은 "패키지 하나를 기술하는 요소 묶음" |
+| 바이너리 패키지 | `software_Package`: 이름, `<버전>-r<리비전>`, purl `pkg:apk/kel/<이름>@<버전>?arch=<arch>`, 홈페이지, suppliedBy KEL, builtTime, `.apk`의 sha256 | 스캐너가 읽는 패키지 요소에 구성요소 해시 |
+| 배포 파일 | `hasDistributionArtifact` → `software_File` `<이름>-<버전>.apk`(sha256) | 서명되고 공개되는 실제 파일 |
+| 패키지 내용 | `contains` → 파일·심볼릭 링크마다 `software_File`(sha256, 링크는 대상을 comment로) | 디렉터리는 넣지 않음 |
+| 라이선스 | `hasDeclaredLicense` → `simplelicensing_LicenseExpression`(레시피의 SPDX 식) | concluded 라이선스는 주장하지 않음 |
+| 업스트림 소스 | `software_Package`(downloadLocation, sha256, 서명 URL과 고정 키 지문은 externalRef `securityOther`) `generates` → 바이너리 패키지 | 3.0.1에는 generatedFrom이 없다 |
+| 패치 | 첫 소스 `patchedBy` → `recipes/<이름>/patches/*.patch`(sha256) | 대응 소스(D-016)의 일부 |
+| 작성 정보 | `CreationInfo`: createdBy KEL(Organization), createdUsing `kel <버전>`(Tool), created = 패키지 build-time | dataLicense CC0-1.0 |
+
+같은 패키지는 항상 같은 바이트의 SBOM이 된다: 시각은 패키지를 빌드한 `SOURCE_DATE_EPOCH`(패키지
+build-time) 하나뿐이고, 요소 ID는 `https://github.com/jgchoimd-web/KEL/spdx/<arch>/<이름>-<버전>#Package`처럼
+이름·버전·아키텍처·경로에서 만들며, 명세 6장의 정규 직렬화(키 정렬, 공백 없음)로 쓴다. 단위 테스트가 구조(필수
+필드, 참조가 문서 안에서 풀리는지)를 검사하고, `KEL_SPDX_SCHEMA`에 공식 JSON 스키마
+(<https://spdx.org/schema/3.0.1/spdx-json-schema.json>) 사본을 주면 표준 라이브러리만으로 스키마 검증도 한다.
+아직 없는 것: SBOM 서명, 의존성(`depends`, `so:`)을 다른 패키지의 SBOM과 잇는 관계, 빌드 단계에서 자동 생성.
+
 **재현성과 공급망(제안):**
 - `SOURCE_DATE_EPOCH`는 레시피의 마지막 변경 커밋 시각 등 결정적인 값으로 고정.
 - 두 번 빌드해서 비교(Phase 1 stage 4/5부터), 차이는 diffoscope로 분석.
@@ -572,6 +596,21 @@ stage 4/5 비교는 GCC가 자기 빌드에서 하는 stage 2/3 비교와 같은
 자기 복제 백도어를 심는 공격(trusting trust)까지 배제하지는 못한다. 그 보증에는
 서로 독립적인 컴파일러 두 개로 빌드한 결과를 비교하는 DDC(Diverse Double-Compiling)나
 live-bootstrap 같은 전체 소스 부트스트랩이 필요하고, Phase 4에서 검토한다.
+
+**비교 도구 (`kel compare A B`, 구현됨):** 두 저장소(`.apk`가 있는 디렉터리 또는 그 부모)의 패키지를 이름으로
+짝짓고 한쪽에만 있는 패키지를 보고한다(같은 이름이 여러 버전이면 가장 새 버전). `.apk`가 비트 단위로 같으면 끝이다.
+다르면 apk 자체로 읽는다(v3 형식을 직접 해석하지 않음, 4.2): `apk adbdump`로 메타데이터(패키지 필드 전부와
+경로마다 종류·모드·소유자·링크 대상·sha256·mtime·xattr)를, `apk extract`로 파일을 풀어 메타데이터와 맞는지
+해시를 다시 계산해 확인한 뒤 비교한다. 내용이 다른 ELF 파일은 다른 섹션 이름을 알려 준다(섹션 헤더를 파이썬으로
+읽으므로 readelf가 필요 없다). 내용과 메타데이터가 같은데 `.apk`만 다르면 서명이나 압축만 다른 것이고, 이것도
+차이로 센다(같은 RSA 키의 apk 서명은 결정적이다, D-019).
+
+| 주제 | 규칙 | 이유 |
+|---|---|---|
+| 풀기 | 패키징처럼 user namespace의 uid 0으로 `apk --allow-untrusted extract --no-chown`, 그 namespace 안에서만 유효한 `CAP_DAC_OVERRIDE` 추가 | 비특권 사용자도 읽기 전용 디렉터리가 든 패키지를 풀 수 있다. 소유자는 메타데이터로 비교. 서명 키가 다른 저장소끼리도 비교 |
+| 결과 | Markdown 보고서(표준 출력, `--report FILE`)와 JSON 요약(`--json FILE`, `-`면 표준 출력): 같은 패키지, 다른 패키지의 경로와 차이 종류(missing, type, mode, owner, target, content, mtime, xattrs), 메타데이터 차이 | 사람이 읽는 보고서와 stage 5 자동 판정 |
+| 종료 코드 | 하나라도 다르거나 한쪽에만 있으면 1 | |
+| 더 보기 | `--keep DIR`이면 푼 파일을 `DIR/a/<이름>`, `DIR/b/<이름>`에 남김(소유자 읽기·쓰기 권한이 더해짐) | diffoscope로 원인 분석(4.17) |
 
 ### 5.2 aarch64
 

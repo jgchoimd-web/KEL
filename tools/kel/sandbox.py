@@ -16,11 +16,17 @@ from kel.util import KelError
 
 def bwrap_command(argv: list[str], *, chdir: Path, env: dict[str, str],
                   rw_binds: list[Path], share_net: bool = False,
-                  sh_is_bash: bool = False, as_root: bool = False) -> list[str]:
+                  sh_is_bash: bool = False, as_root: bool = False,
+                  ro_binds: list[Path] = (), cap_add: list[str] = ()) -> list[str]:
     cmd = ["bwrap", "--die-with-parent", "--unshare-all"]
     if as_root:
         # Appear as uid/gid 0 (only the caller's own ids are mapped).
         cmd += ["--uid", "0", "--gid", "0"]
+    for cap in cap_add:
+        # bwrap drops all capabilities by default. For an unprivileged caller
+        # these exist only in the new user namespace: they cover files owned
+        # by the mapped uid, nothing else on the host.
+        cmd += ["--cap-add", cap]
     if share_net:
         cmd.append("--share-net")
     cmd += ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp"]
@@ -30,6 +36,9 @@ def bwrap_command(argv: list[str], *, chdir: Path, env: dict[str, str],
         sh = Path("/bin/sh").resolve()
         bash = Path("/bin/bash").resolve()
         cmd += ["--ro-bind", str(bash), str(sh)]
+    # Explicit binds come after the /tmp tmpfs so that paths under /tmp stay visible.
+    for path in ro_binds:
+        cmd += ["--ro-bind", str(path), str(path)]
     for path in rw_binds:
         cmd += ["--bind", str(path), str(path)]
     cmd.append("--clearenv")

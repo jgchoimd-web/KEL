@@ -38,6 +38,8 @@ docs/               문서
 ./kel lint                  # 레시피 검증
 ./kel fetch                 # 소스 다운로드 + sha256·서명 검증
 ./kel bootstrap stage1      # stage 1: 크로스 툴체인 (root가 아닌 사용자로 실행)
+./kel sbom zlib             # 빌드된 패키지의 SPDX 3.0.1 SBOM (work/<arch>/repo/sbom/)
+./kel compare A B           # 두 패키지 저장소 비교 (stage 5 재현성 검사, 다르면 종료 코드 1)
 ```
 
 - 빌드는 bubblewrap 샌드박스 안에서 네트워크 없이, 호스트를 읽기 전용으로 둔 채 돈다.
