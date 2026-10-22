@@ -1,0 +1,35 @@
+[package]
+name = "zlib"
+version = "1.3.2"
+revision = 0
+summary = "General purpose compression library"
+license = "Zlib"
+homepage = "https://zlib.net/"
+
+# Signed with a DSA-1024 key over a SHA-1 digest (weak by today's standards);
+# the sha256 pin is the primary check. The GitHub release asset is the same
+# file as on zlib.net, which moves old releases away.
+[[source]]
+url = "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.xz"
+sha256 = "d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3"
+signature = "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.xz.asc"
+signing_keys = ["5ED46A6721D365587791E2AA783FCD8E58BCAFBA"]  # Mark Adler
+
+# Stage 3 (for Python's zlib module). Based on LFS 13.1 chapter 7.10.
+[bootstrap.stage3]
+script = '''
+./configure --prefix=/usr
+make
+make install
+rm -fv /usr/lib/libz.a
+'''
+
+# Package. Based on LFS 13.1 chapter 8.6. zlib's configure script is not
+# autoconf and rejects the usual options, so it only gets --prefix.
+[build]
+style = "make"
+check = true
+configure = "./configure --prefix=/usr"
+post_install = '''
+rm -fv "$DESTDIR"/usr/lib/libz.a
+'''

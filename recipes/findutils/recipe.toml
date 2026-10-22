@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/findutils/findutils-4.11.0.tar.xz.sig"
 signing_keys = ["0CF4E8D871593224842832B888DD9E08C5DDACB9"]  # James Youngman
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

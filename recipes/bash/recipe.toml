@@ -135,7 +135,7 @@ signature = "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-020.sig"
 signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 # KEL also applies the 20 official upstream patches (LFS chapter 6 does not).
 [bootstrap.stage2]
 script = '''

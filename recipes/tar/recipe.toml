@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz.sig"
 signing_keys = ["325F650C4C2B6AD58807327A3602B07F55D0C732"]  # Sergey Poznyakoff
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

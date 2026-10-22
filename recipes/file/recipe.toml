@@ -13,7 +13,7 @@ signature = "https://astron.com/pub/file/file-5.48.tar.gz.asc"
 signing_keys = ["BE04995BA8F90ED0C0C176C471112AB16CB33B3A"]  # Christos Zoulas
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 mkdir build

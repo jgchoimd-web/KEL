@@ -1,0 +1,28 @@
+[package]
+name = "mpdecimal"
+version = "4.0.1"
+revision = 0
+summary = "Arbitrary precision decimal arithmetic (libmpdec), used by Python's decimal module"
+license = "BSD-2-Clause"
+homepage = "https://www.bytereef.org/mpdecimal/"
+
+# No signature is published. The sha256 matches the one on the upstream
+# download page (https://www.bytereef.org/mpdecimal/download.html), checked
+# 2026-10-22.
+[[source]]
+url = "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.1.tar.gz"
+sha256 = "96d33abb4bb0070c7be0fed4246cd38416188325f820468214471938545b1ac8"
+
+# Stage 3: Python 3.15 no longer bundles libmpdec. Based on LFS 13.1
+# chapter 7.11.
+[bootstrap.stage3]
+script = '''
+./configure --prefix=/usr --disable-static
+make
+make install
+'''
+
+# Package. Based on LFS 13.1 chapter 8 (mpdecimal).
+[build]
+style = "gnu-configure"
+configure_args = ["--disable-static"]

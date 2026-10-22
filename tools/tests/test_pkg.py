@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from kel.config import REPO_ROOT
-from kel.pkg import (PackagePart, check_policy, ensure_dev_key, make_apk, make_index,
-                     resolve_dependencies, split_subpackages)
+from kel.pkg import (PackagePart, check_conflicts, check_policy, ensure_dev_key, make_apk,
+                     make_index, resolve_dependencies, split_subpackages, write_manifests)
 from kel.recipe import Recipe, Subpackage
 from kel.sandbox import bwrap_command
 
@@ -94,6 +94,25 @@ class PackagingTests(unittest.TestCase):
         self.assertTrue((root / "usr/bin/demo").exists(), proc.stdout + proc.stderr)
         self.assertTrue((root / "usr/include/demo.h").exists())
         self.assertEqual(os.readlink(root / "usr/lib/libdemo.so"), "libdemo.so.1")
+
+
+class ConflictTests(unittest.TestCase):
+    def test_file_shipped_twice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            for name in ("coreutils", "util-linux"):
+                (tmp / name / "usr/bin").mkdir(parents=True)
+                (tmp / name / "usr/bin/kill").write_text(name)
+            (tmp / "coreutils/usr/bin/ls").write_text("ls")
+            manifests = tmp / "manifests"
+            first = [PackagePart("coreutils", "s", tmp / "coreutils")]
+            self.assertEqual(check_conflicts(first, manifests), [])
+            write_manifests(first, manifests, "9.12-r0")
+            # Rebuilding the same package is not a conflict.
+            self.assertEqual(check_conflicts(first, manifests), [])
+            second = [PackagePart("util-linux", "s", tmp / "util-linux")]
+            self.assertEqual(check_conflicts(second, manifests),
+                             ["util-linux: /usr/bin/kill is already shipped by coreutils"])
 
 
 class PolicyTests(unittest.TestCase):

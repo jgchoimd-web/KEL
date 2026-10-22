@@ -13,8 +13,7 @@ signature = "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz.as
 signing_keys = ["19882D92DDA4C400C22C0D56CC2AF4472167BE03"]  # Thomas E. Dickey
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
-# KEL uses the 6.6 release; LFS 12.4 used a weekly snapshot.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 mkdir build

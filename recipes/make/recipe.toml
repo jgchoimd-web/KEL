@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz.sig"
 signing_keys = ["6D4EEB02AD834703510B117680CB727A20C79BB2"]  # Paul D. Smith (signing subkey expired 2026-10-20; signature from 2023)
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

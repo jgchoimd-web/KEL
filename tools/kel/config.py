@@ -16,11 +16,12 @@ class Arch:
     name: str  # KEL architecture name, also used by apk
     triplet: str  # GNU target triplet with the "kel" vendor field
     kernel_arch: str  # ARCH= value for the Linux build system
+    isa_flags: str  # compiler flags for the ISA baseline (D-001)
 
 
 ARCHES = {
-    "x86_64": Arch("x86_64", "x86_64-kel-linux-gnu", "x86"),
-    "aarch64": Arch("aarch64", "aarch64-kel-linux-gnu", "arm64"),
+    "x86_64": Arch("x86_64", "x86_64-kel-linux-gnu", "x86", "-march=x86-64-v2 -mtune=generic"),
+    "aarch64": Arch("aarch64", "aarch64-kel-linux-gnu", "arm64", "-march=armv8-a -mtune=generic"),
 }
 
 

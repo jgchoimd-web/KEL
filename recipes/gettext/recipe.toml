@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/gettext/gettext-1.0.tar.xz.sig"
 signing_keys = ["E0FFBD975397F77A32AB76ECB6301D9E1BBEAC08"]  # Bruno Haible
 
 # Stage 3: only the three programs other packages need, inside the new root.
-# Based on LFS 12.4 chapter 7.7.
+# Based on LFS 13.1 chapter 7.7.
 [bootstrap.stage3]
 script = '''
 ./configure --disable-shared

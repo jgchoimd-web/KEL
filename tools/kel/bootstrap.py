@@ -24,8 +24,8 @@ from kel.config import Arch, Layout
 from kel.fetch import fetch_recipe
 from kel.recipe import NAME_RE, PROFILE_RE, Recipe, load_recipe
 from kel.build import build_script
-from kel.pkg import (check_policy, ensure_dev_key, install_into_root, make_apk, make_index,
-                     resolve_dependencies, split_subpackages)
+from kel.pkg import (check_conflicts, check_policy, ensure_dev_key, install_into_root, make_apk,
+                     make_index, resolve_dependencies, split_subpackages, write_manifests)
 from kel.sandbox import bwrap_command, bwrap_root_command, require_bwrap
 from kel.util import KelError, Timer, format_duration, log
 
@@ -40,14 +40,33 @@ INNER_WORKDIR = "/kel/build"
 # A step with this profile builds the recipe's [build] section as packages.
 PACKAGE_PROFILE = "package"
 
-# Flags for package builds during the bootstrap. Hardening flags become the
-# default in Phase 2 (DESIGN.md 4.5), with per-recipe opt-outs.
-BOOTSTRAP_CFLAGS = "-O2 -pipe"
+# Flags for package builds: optimization plus the architecture's ISA baseline
+# (D-001). Hardening flags become the default in Phase 2 (DESIGN.md 4.5),
+# with per-recipe opt-outs.
+PACKAGE_OPT_FLAGS = "-O2 -pipe"
+
+
+def package_cflags(arch: Arch) -> str:
+    return f"{PACKAGE_OPT_FLAGS} {arch.isa_flags}"
 
 # "host": run on the host with a read-only view of it (stages 1-2, which use
 # host tools to build the cross toolchain). "sysroot": the sysroot becomes /
 # (stage 3 onwards, nothing from the host is used).
 STAGE_ROOTS = ("host", "sysroot")
+
+# Where the recipe directory (patches/, files/) appears in a "sysroot" stage.
+INNER_RECIPEDIR = "/kel/recipe"
+INNER_CONFIG_SITE = "/kel/config.site"
+
+# Autoconf cache values for KEL's glibc, given to configure through
+# CONFIG_SITE (LFS 13.1 chapter 6.2 writes the same lines into
+# $LFS/usr/share/config.site). glibc 2.44 declares these POSIX names only as
+# header aliases of the *_np functions, so autoconf's link test misses them
+# and gnulib compiles replacements.
+CONFIG_SITE_VALUES = """\
+ac_cv_func_posix_spawn_file_actions_addchdir=yes
+ac_cv_func_posix_spawn_file_actions_addfchdir=yes
+"""
 
 
 @dataclass(frozen=True)
@@ -68,6 +87,9 @@ class Stage:
     verify: str | None
     digest: str
     root: str = "host"
+    # Give configure scripts kel's autoconf cache values (CONFIG_SITE_VALUES).
+    # Only for stages whose configure runs describe the target system.
+    config_site: bool = False
 
 
 def load_stage(layout: Layout, name: str) -> Stage:
@@ -99,6 +121,12 @@ def load_stage(layout: Layout, name: str) -> Stage:
     root = meta.get("root", "host")
     if root not in STAGE_ROOTS:
         raise KelError(f"{path}: stage root must be one of {', '.join(STAGE_ROOTS)}")
+    unknown = set(meta) - {"name", "summary", "root", "config_site"}
+    if unknown:
+        raise KelError(f"{path}: unknown [stage] key(s): {', '.join(sorted(unknown))}")
+    config_site = meta.get("config_site", False)
+    if not isinstance(config_site, bool):
+        raise KelError(f"{path}: config_site must be true or false")
     return Stage(
         name=meta.get("name", name),
         summary=meta.get("summary", ""),
@@ -106,6 +134,7 @@ def load_stage(layout: Layout, name: str) -> Stage:
         verify=verify,
         digest=hashlib.sha256(raw_text).hexdigest(),
         root=root,
+        config_site=config_site,
     )
 
 
@@ -185,15 +214,20 @@ def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
 def step_key(stage: Stage, step: Step, recipe: Recipe, arch: Arch) -> str:
     """Identity of a step's inputs; a finished step is redone when it changes.
 
-    A bootstrap profile depends on the recipe's version, sources and that
-    profile's script only, so adding another profile to the recipe does not
-    redo finished steps. A package step depends on the whole recipe directory.
+    A bootstrap profile depends on the recipe's version, sources, that
+    profile's script and the files next to recipe.toml, so adding another
+    profile to the recipe does not redo finished steps. A package step depends on the whole recipe
+    directory, the generated build script and the compiler flags.
     """
     if step.profile == PACKAGE_PROFILE:
-        inputs = recipe.digest
+        # The generated script carries kel's own build code (build.py).
+        inputs = repr((recipe.digest, build_script(recipe), package_cflags(arch)))
     else:
-        inputs = repr((recipe.pkgver, [(s.url, s.sha256, s.dest) for s in recipe.sources],
-                       recipe.bootstrap[step.profile].script))
+        parts: tuple = (recipe.pkgver, [(s.url, s.sha256, s.dest) for s in recipe.sources],
+                        recipe.bootstrap[step.profile].script)
+        if recipe.support_digest:  # the script may use files/ or patches/
+            parts += (recipe.support_digest,)
+        inputs = repr(parts)
     h = hashlib.sha256()
     for part in (__version__, stage.name, step.label, arch.name, inputs):
         h.update(part.encode() + b"\0")
@@ -218,7 +252,6 @@ def base_env(layout: Layout, arch: Arch, jobs: int, recipes: dict[str, Recipe],
         tools = layout.tools(arch)
         env.update({
             "PATH": f"{tools}/bin:/usr/bin:/bin",
-            "CONFIG_SITE": f"{sysroot}/usr/share/config.site",
             "KEL_SYSROOT": str(sysroot),
             "KEL_TOOLS": str(tools),
             "KEL_HOSTTOOLS": str(layout.host_tools(arch)),
@@ -244,12 +277,17 @@ def _tail(path: Path, lines: int = 40) -> str:
 
 
 def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path,
-               env: dict[str, str], logfile: Path,
-               ro_binds: list[tuple[Path, str]] = ()) -> None:
-    """Run a step script in the sandbox; workdir/src (if any) is the start directory."""
+               env: dict[str, str], logfile: Path, recipe_dir: Path | None = None,
+               config_site: Path | None = None) -> None:
+    """Run a step script in the sandbox; workdir/src (if any) is the start directory.
+
+    The script finds the recipe directory in $KEL_RECIPEDIR and, if given,
+    kel's autoconf cache file through $CONFIG_SITE.
+    """
     argv = ["/bin/bash", "-e", "-u", "-o", "pipefail", "-c", SCRIPT_PRELUDE + script]
     has_src = (workdir / "src").is_dir()
     if root == "host":
+        # The host's / is visible read-only, so host paths work as they are.
         home = workdir / ".home"
         home.mkdir(parents=True, exist_ok=True)
         env = dict(env, HOME=str(home), KEL_WORKDIR=str(workdir))
@@ -257,17 +295,28 @@ def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path
             env["KEL_SRCDIR"] = str(workdir / "src")
         if (workdir / "sources").is_dir():
             env["KEL_SOURCEDIR"] = str(workdir / "sources")
+        if recipe_dir:
+            env["KEL_RECIPEDIR"] = str(recipe_dir)
+        if config_site:
+            env["CONFIG_SITE"] = str(config_site)
         cmd = bwrap_command(argv, chdir=workdir / "src" if has_src else workdir, env=env,
                             rw_binds=[layout.arch_root(arch)], sh_is_bash=True)
     else:
         env = dict(env, KEL_WORKDIR=INNER_WORKDIR)
+        ro_binds = []
         if has_src:
             env["KEL_SRCDIR"] = f"{INNER_WORKDIR}/src"
         if (workdir / "sources").is_dir():
             env["KEL_SOURCEDIR"] = f"{INNER_WORKDIR}/sources"
+        if recipe_dir:
+            env["KEL_RECIPEDIR"] = INNER_RECIPEDIR
+            ro_binds.append((recipe_dir, INNER_RECIPEDIR))
+        if config_site:
+            env["CONFIG_SITE"] = INNER_CONFIG_SITE
+            ro_binds.append((config_site, INNER_CONFIG_SITE))
         cmd = bwrap_root_command(argv, root=layout.sysroot(arch),
                                  chdir=env.get("KEL_SRCDIR", INNER_WORKDIR), env=env,
-                                 binds=[(workdir, INNER_WORKDIR)], ro_binds=list(ro_binds))
+                                 binds=[(workdir, INNER_WORKDIR)], ro_binds=ro_binds)
     rc = _run_logged(cmd, logfile)
     if rc != 0:
         raise KelError(f"failed (exit {rc}); log: {logfile}\n{_tail(logfile)}")
@@ -298,6 +347,10 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
                for name, r in recipes.items()}
     prepare_sysroot(layout, arch)
     env0 = base_env(layout, arch, jobs, recipes, stage.root)
+    config_site = None
+    if stage.config_site:
+        config_site = layout.arch_root(arch) / "config.site"
+        config_site.write_text(CONFIG_SITE_VALUES)
     stamps = layout.stamps(arch) / stage.name
     stamps.mkdir(parents=True, exist_ok=True)
 
@@ -323,10 +376,11 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
         with Timer() as t:
             try:
                 if step.profile == PACKAGE_PROFILE:
-                    run_package_step(layout, arch, stage, recipe, workdir, env0, logfile)
+                    run_package_step(layout, arch, stage, recipe, workdir, env0, logfile,
+                                     config_site)
                 else:
                     run_script(layout, arch, stage.root, recipe.bootstrap[step.profile].script,
-                               workdir, env0, logfile)
+                               workdir, env0, logfile, recipe.path.parent, config_site)
             except KelError as e:
                 raise KelError(f"{step.label}: {e}")
         stamp.write_text(json.dumps({"key": key, "version": recipe.pkgver,
@@ -340,7 +394,8 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
 
 
 def run_package_step(layout: Layout, arch: Arch, stage: Stage, recipe: Recipe, workdir: Path,
-                     env0: dict[str, str], logfile: Path, run_check: bool = True) -> None:
+                     env0: dict[str, str], logfile: Path, config_site: Path | None = None,
+                     run_check: bool = True) -> None:
     """Build [build] into DESTDIR, package it, index it, and update the build root.
 
     During the bootstrap the packages are created with the host-built apk
@@ -357,24 +412,26 @@ def run_package_step(layout: Layout, arch: Arch, stage: Stage, recipe: Recipe, w
                DESTDIR=f"{INNER_WORKDIR}/pkg",
                KEL_PKGNAME=recipe.name,
                KEL_PKGVER=recipe.pkgver,
-               KEL_RECIPEDIR="/kel/recipe",
                KEL_STRIP="1" if recipe.build.strip else "0",
                KEL_KEEP_LA="1" if recipe.build.keep_la else "0",
-               CFLAGS=BOOTSTRAP_CFLAGS,
-               CXXFLAGS=BOOTSTRAP_CFLAGS)
+               CFLAGS=package_cflags(arch),
+               CXXFLAGS=package_cflags(arch))
     run_script(layout, arch, stage.root, build_script(recipe, run_check), workdir, env, logfile,
-               ro_binds=[(recipe.path.parent, "/kel/recipe")])
+               recipe.path.parent, config_site)
     parts = split_subpackages(recipe, destdir, workdir)
     problems = resolve_dependencies(parts)
     for part in parts:
         problems += check_policy(part)
+    repo = layout.repository(arch)
+    manifests = repo.parent / "manifests"
+    problems += check_conflicts(parts, manifests)
     if problems:
         raise KelError("packaging policy violations:\n  " + "\n  ".join(problems))
     key, pub = ensure_dev_key(layout.keys())
-    repo = layout.repository(arch)
     for part in parts:
         out = make_apk(apk, part, recipe, arch.name, repo, key, SOURCE_DATE_EPOCH)
         log(f"package: {out.name} depends=[{' '.join(part.depends)}]")
+    write_manifests(parts, manifests, recipe.pkgver)
     make_index(apk, repo, key, pub, f"KEL bootstrap ({stage.name})")
     install_into_root(parts, layout.sysroot(arch))
 

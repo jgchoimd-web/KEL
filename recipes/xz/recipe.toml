@@ -13,7 +13,7 @@ signature = "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5
 signing_keys = ["3690C240CE51B4670D30AD1C38EE757D69184620"]  # Lasse Collin
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

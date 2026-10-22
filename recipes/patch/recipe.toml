@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/patch/patch-2.8.tar.xz.sig"
 signing_keys = ["259B3792B3D6D319212CC4DCD5BF9FEB0313653A"]  # Andreas Gruenbacher
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

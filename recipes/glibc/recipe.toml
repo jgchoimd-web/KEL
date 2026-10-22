@@ -12,14 +12,25 @@ sha256 = "37f600f2bef3c5e8300147059568b2a2e40a7ad6ccc65ce942556d49429cc667"
 signature = "https://ftp.gnu.org/gnu/glibc/glibc-2.44.tar.xz.sig"
 signing_keys = ["35B17DF5752577CA0C541CEB94BFDF4484AD142F"]  # Andreas K. Huettel
 
+# patches/ (applied in this order):
+#   0001-release-2.44-branch.patch  all fixes on upstream's release/2.44/master
+#     up to 045c51476c7a (2026-10-11), generated from the glibc git
+#     repository with `git diff glibc-2.44 045c51476c7a`; the header lists
+#     the 58 commits. It supersedes LFS 13.1's glibc-2.44-upstream_fixes-1
+#     patch (a snapshot of the same branch from 2026-08-15) and adds the later
+#     security fixes (CVE-2026-8674, CVE-2026-18374, CVE-2026-19499, ...).
+#   0002-fhs.patch  LFS's glibc-fhs-1.patch: runtime data under /var/lib and
+#     /var/cache instead of /var/db.
+
 # Stage 1: glibc cross compiled into the sysroot.
-# Based on LFS 12.4 chapter 5.5. Differences: no FHS patch, libraries and the
-# dynamic loader in /usr/lib and programs in /usr/bin (merged /usr, DESIGN.md
-# 4.7), minimum kernel 5.10 (systemd's minimum, DESIGN.md 4.6).
+# Based on LFS 13.1 chapter 5.5. Differences: the release branch patch only
+# (no FHS patch), libraries and the dynamic loader in /usr/lib and programs in
+# /usr/bin (merged /usr, DESIGN.md 4.7).
 # Setting libc_cv_slibdir skips glibc's lib64 defaults (aclocal.m4
 # LIBC_SLIBDIR_RTLDDIR), so rtlddir is set explicitly in configparms.
 [bootstrap.cross]
 script = '''
+patch -Np1 -i "$KEL_RECIPEDIR/patches/0001-release-2.44-branch.patch"
 mkdir -v build
 cd build
 cat > configparms <<'EOF'

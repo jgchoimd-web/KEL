@@ -15,7 +15,7 @@ signature_type = "detached-uncompressed"
 signing_keys = ["647F28654894E3BD457199BE38DBBDC86092693E"]  # Greg Kroah-Hartman
 
 # Stage 1: sanitized kernel API headers for glibc and userspace.
-# Based on LFS 12.4 chapter 5.4.
+# Based on LFS 13.1 chapter 5.4.
 [bootstrap.headers]
 script = '''
 make ARCH="$KEL_KERNEL_ARCH" mrproper

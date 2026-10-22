@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz.sig"
 signing_keys = ["71C2CC22B1C4602927D2F3AAA7A16B4A2527436A"]  # Eric Blake
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr \

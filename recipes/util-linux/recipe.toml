@@ -14,7 +14,7 @@ signature = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-
 signature_type = "detached-uncompressed"
 signing_keys = ["B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284"]  # Karel Zak
 
-# Stage 3. Based on LFS 12.4 chapter 7.12.
+# Stage 3. Based on LFS 13.1 chapter 7.14.
 [bootstrap.stage3]
 script = '''
 mkdir -pv /var/lib/hwclock

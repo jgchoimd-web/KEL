@@ -35,7 +35,7 @@ signing_keys = ["AD17A21EF8AED8F1CC02DBD9F7D5C9BF765C61E3"]  # Andreas Enge
 dest = "mpc"
 
 # Stage 1: cross compiler without a C library (only enough to build glibc).
-# Based on LFS 12.4 chapter 5.3.
+# Based on LFS 13.1 chapter 5.3.
 [bootstrap.pass1]
 script = '''
 case "$KEL_ARCH" in
@@ -55,6 +55,7 @@ cd build
     --without-headers \
     --enable-default-pie \
     --enable-default-ssp \
+    --disable-fixincludes \
     --disable-nls \
     --disable-shared \
     --disable-multilib \
@@ -68,14 +69,14 @@ cd build
     --enable-languages=c,c++
 make
 make install
-cd ..
 # The limits.h installed above is incomplete; build the full internal one.
-cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
-    "$(dirname "$("$KEL_TARGET-gcc" -print-libgcc-file-name)")/include/limits.h"
+cat ../gcc/{limitx,glimits,limity}.h > \
+    "$("$KEL_TARGET-gcc" -print-file-name=include)/limits.h"
 '''
 
 # Stage 1: libstdc++ for the cross compiler, built against the new glibc.
-# Based on LFS 12.4 chapter 5.6.
+# Based on LFS 13.1 chapter 5.6. CXX is the C compiler: libstdc++ is not
+# installed yet, so configure checks run with the C++ driver would fail.
 [bootstrap.libstdcxx]
 script = '''
 mkdir -v build
@@ -83,6 +84,7 @@ cd build
 ../libstdc++-v3/configure \
     --host="$KEL_TARGET" \
     --build="$(../config.guess)" \
+    CXX="$KEL_TARGET-gcc" \
     --prefix=/usr \
     --disable-multilib \
     --disable-nls \
@@ -95,7 +97,9 @@ rm -fv "$KEL_SYSROOT"/usr/lib/lib{stdc++,stdc++exp,stdc++fs,supc++}.la
 '''
 
 # Stage 2: native GCC for the target, cross compiled into the sysroot.
-# Based on LFS 12.4 chapter 6.18 (GMP/MPFR/MPC are unpacked by kel).
+# Based on LFS 13.1 chapter 6.18 (GMP/MPFR/MPC are unpacked by kel).
+# -nostdinc++ keeps the libstdc++ headers of stage 1 out of the build;
+# no fixincludes, so a stale include-fixed from an earlier build is removed.
 [bootstrap.pass2]
 script = '''
 case "$KEL_ARCH" in
@@ -103,8 +107,6 @@ case "$KEL_ARCH" in
     sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
     ;;
 esac
-sed '/thread_header =/s/@.*@/gthr-posix.h/' \
-    -i libgcc/Makefile.in libstdc++-v3/include/Makefile.in
 mkdir -v build
 cd build
 ../configure \
@@ -115,6 +117,7 @@ cd build
     --with-build-sysroot="$KEL_SYSROOT" \
     --enable-default-pie \
     --enable-default-ssp \
+    --disable-fixincludes \
     --disable-nls \
     --disable-multilib \
     --disable-libatomic \
@@ -124,8 +127,11 @@ cd build
     --disable-libssp \
     --disable-libvtv \
     --enable-languages=c,c++ \
-    LDFLAGS_FOR_TARGET=-L"$PWD/$KEL_TARGET/libgcc"
+    CXX_FOR_TARGET="$KEL_TARGET-gcc -nostdinc++" \
+    LDFLAGS_FOR_TARGET=-L"$PWD/$KEL_TARGET/libgcc" \
+    target_configargs=gcc_cv_target_thread_file=posix
 make
+rm -rf "$KEL_SYSROOT/usr/lib/gcc/$KEL_TARGET/$KEL_VERSION_GCC/include-fixed"
 make DESTDIR="$KEL_SYSROOT" install
 ln -sv gcc "$KEL_SYSROOT/usr/bin/cc"
 '''

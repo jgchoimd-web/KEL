@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz.sig"
 signing_keys = ["6C37DC12121A5006BC1DB804DF6FD971306037D9"]  # Pádraig Brady
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 # LFS moves chroot to /usr/sbin; KEL merges sbin into bin, so it stays.
 [bootstrap.stage2]
 script = '''

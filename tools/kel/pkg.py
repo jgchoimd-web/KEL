@@ -9,6 +9,7 @@ names, resolved through the root's /etc/passwd).
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -135,6 +136,35 @@ def check_policy(part: PackagePart) -> list[str]:
     if not any(part.root.iterdir()):
         problems.append(f"{part.name}: package is empty")
     return problems
+
+
+def package_files(part: PackagePart) -> list[str]:
+    """Absolute paths of everything a package ships except directories."""
+    return sorted("/" + p.relative_to(part.root).as_posix()
+                  for p in part.root.rglob("*") if p.is_symlink() or not p.is_dir())
+
+
+def check_conflicts(parts: list[PackagePart], manifest_dir: Path) -> list[str]:
+    """Report files that another package in the repository already ships.
+
+    apk refuses to install two packages that own the same path, so this is
+    caught when the package is built instead of when it is installed.
+    """
+    own = {part.name for part in parts}
+    claimed: dict[str, str] = {}
+    for manifest in sorted(manifest_dir.glob("*.json")) if manifest_dir.is_dir() else ():
+        data = json.loads(manifest.read_text())
+        if data["name"] not in own:
+            claimed.update((f, data["name"]) for f in data["files"])
+    return [f"{part.name}: {f} is already shipped by {claimed[f]}"
+            for part in parts for f in package_files(part) if f in claimed]
+
+
+def write_manifests(parts: list[PackagePart], manifest_dir: Path, version: str) -> None:
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    for part in parts:
+        data = {"name": part.name, "version": version, "files": package_files(part)}
+        (manifest_dir / f"{part.name}.json").write_text(json.dumps(data, indent=1) + "\n")
 
 
 def resolve_dependencies(parts: list[PackagePart]) -> list[str]:

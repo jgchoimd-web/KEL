@@ -546,14 +546,14 @@ SBOM을 공개하고, 지원 기간도 5년을 기준으로 잡는다(4.13).
  stage 5: stage 4 패키지로 한 번 더 재빌드 → 저장소 v2, v1과 비트 단위 비교 (재현성 검증)
 ```
 
-stage 0 호스트 점검 기준은 LFS 12.4의 호스트 요구사항(Bash 3.2, Binutils 2.13.1,
+stage 0 호스트 점검 기준은 LFS 13.1의 호스트 요구사항(Bash 3.2, Binutils 2.13.1,
 Bison 2.7, Coreutils 8.1, Diffutils 2.8.1, Findutils 4.2.31, Gawk 4.0.1, GCC 5.4, Grep 2.5.1a,
 Gzip 1.3.12, M4 1.4.10, Make 4.0, Patch 2.5.4, Perl 5.8.8, Python 3.4, Sed 4.1.5, Tar 1.22,
-Texinfo 5.0, Xz 5.0.0, 커널 5.4)에 KEL 도구용 Python 3.11+와 bubblewrap을 더한 것으로
+Texinfo 5.0, Xz 5.0.0, 커널 5.10)에 KEL 도구용 Python 3.11+와 bubblewrap을 더한 것으로
 시작한다. 현재 호스트에는 gawk와 texinfo가 없지만 apt로 설치할 수 있음을 확인했다.
 (GCC 15 이상을 빌드하려면 C++14 호스트 컴파일러가 필요한데 호스트 GCC 13.3이면 충분하다.
 glibc 2.44가 요구하는 GCC 12.1+/binutils 2.39+는 stage 1에서 만든 KEL 크로스 툴체인이 충족한다.)
-출처: <https://www.linuxfromscratch.org/lfs/view/stable/chapter02/hostreqs.html>
+출처: <https://www.linuxfromscratch.org/lfs/view/stable-systemd/chapter02/hostreqs.html>
 
 ### 5.1 단계별 검증 기준
 

@@ -7,11 +7,13 @@ license = "MIT"
 homepage = "https://github.com/jgchoimd-web/KEL"
 
 # No upstream source: the files come from recipes/filesystem/files/.
-# passwd/group/hosts follow LFS 12.4 chapter 7.6; os-release is KEL's own
-# (os-release(5): /etc/os-release is a relative symlink to /usr/lib/os-release).
+# passwd and group are LFS 13.1 chapter 7.6 without the systemd service
+# users: those come from systemd's sysusers.d at install time (DESIGN.md 4.3).
+# os-release is KEL's own (os-release(5): /etc/os-release is a relative
+# symlink to /usr/lib/os-release).
 
 # Stage 3 entry: directory layout and essential files inside the new root.
-# Based on LFS 12.4 chapters 7.5 and 7.6, adapted to merged /usr with
+# Based on LFS 13.1 chapters 7.5 and 7.6, adapted to merged /usr with
 # bin and sbin merged (bin, sbin, lib, lib64 are already symlinks).
 # LFS's "chgrp utmp /var/log/lastlog" and the tester user are left out:
 # the bootstrap sandbox maps a single uid/gid, so other owners cannot be set.
@@ -77,7 +79,7 @@ ln -s ../usr/lib/os-release etc/os-release
 '''
 
 # End of stage 3a: drop documentation and libtool archives of the temporary
-# tools and the cross toolchain (LFS 12.4 chapter 7.13).
+# tools and the cross toolchain (LFS 13.1 chapter 7.15).
 [bootstrap.stage3-cleanup]
 script = '''
 rm -rf /usr/share/{info,man,doc}/*

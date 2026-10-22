@@ -1,7 +1,7 @@
 """Stage 0: check that the bootstrap host has what the bootstrap needs.
 
-Minimum versions come from the LFS 12.4 host requirements
-(https://www.linuxfromscratch.org/lfs/view/stable/chapter02/hostreqs.html)
+Minimum versions come from the LFS 13.1 host requirements
+(https://www.linuxfromscratch.org/lfs/view/stable-systemd/chapter02/hostreqs.html)
 plus what kel itself needs (Python 3.11 for tomllib, bubblewrap, gpg).
 """
 
@@ -81,5 +81,5 @@ def check_host() -> list[Result]:
     py = ".".join(map(str, sys.version_info[:3]))
     results.append(Result("python (kel)", sys.version_info >= (3, 11), py))
     kernel = platform.release().split("-")[0]
-    results.append(Result("linux kernel", version_at_least(kernel, "5.4"), kernel))
+    results.append(Result("linux kernel", version_at_least(kernel, "5.10"), kernel))
     return results

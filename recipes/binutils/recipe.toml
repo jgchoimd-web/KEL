@@ -13,7 +13,7 @@ signature = "https://sourceware.org/pub/binutils/releases/binutils-2.47.tar.xz.s
 signing_keys = ["3A24BC1E8FB409FA9F14371813FCEF89DD9E3C4F"]  # Nick Clifton
 
 # Stage 1: cross binutils for $KEL_TARGET, installed into the sysroot's /tools.
-# Based on LFS 12.4 chapter 5.2.
+# Based on LFS 13.1 chapter 5.2.
 [bootstrap.pass1]
 script = '''
 mkdir -v build
@@ -32,7 +32,7 @@ make install
 '''
 
 # Stage 2: binutils for the target, cross compiled into the sysroot.
-# Based on LFS 12.4 chapter 6.17. The line-numbered sed targets ltmain.sh,
+# Based on LFS 13.1 chapter 6.17. The line-numbered sed targets ltmain.sh,
 # which is identical in binutils 2.45 (LFS) and 2.47 (checked 2026-10-22).
 [bootstrap.pass2]
 script = '''

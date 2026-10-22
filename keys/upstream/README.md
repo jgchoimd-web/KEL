@@ -22,7 +22,7 @@
 | `0CF4E8D871593224842832B888DD9E08C5DDACB9` | James Youngman | findutils | GNU keyring |
 | `D1967C63788713177D861ED7DF597815937EC0D2` | Arnold Robbins | gawk | GNU keyring |
 | `6D4EEB02AD834703510B117680CB727A20C79BB2` | Paul D. Smith | make | GNU keyring, Savannah (서명 부키 2026-10-20 만료) |
-| `259B3792B3D6D319212CC4DCD5BF9FEB0313653A` | Andreas Gruenbacher | patch | Savannah user 15000 (GNU keyring 사본은 만료) |
+| `259B3792B3D6D319212CC4DCD5BF9FEB0313653A` | Andreas Gruenbacher | patch, attr, acl | Savannah user 15000과 kernel.org pgpkeys `keys/D5BF9FEB0313653A.asc`(2029-07-16까지)를 합침. GNU keyring 사본은 만료 |
 | `325F650C4C2B6AD58807327A3602B07F55D0C732` | Sergey Poznyakoff | tar | GNU keyring |
 | `3690C240CE51B4670D30AD1C38EE757D69184620` | Lasse Collin | xz | <https://tukaani.org/misc/lasse_collin_pubkey.txt> |
 | `E0FFBD975397F77A32AB76ECB6301D9E1BBEAC08` | Bruno Haible | gettext | GNU keyring |
@@ -30,6 +30,27 @@
 | `EAF669B31E31E1DECBD11513DDBC579DAB37FBA9` | Gavin Smith (Texinfo 관리자) | texinfo | GNU keyring |
 | `B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284` | Karel Zak | util-linux | kernel.org pgpkeys 저장소 `keys/E4B71D5EEC39C284.asc` |
 | `2E66557AB97C19C791AF8E20328DA867450F89EC` | PAUSE Batch Signing Key (CPAN) | perl (서명된 `CHECKSUMS`) | keyserver.ubuntu.com (아래 참고) |
+| `5ED46A6721D365587791E2AA783FCD8E58BCAFBA` | Mark Adler | zlib | <https://madler.net/madler/pgp.html> (zlib.net이 링크). DSA-1024 |
+| `EC3CFE88F6CA0788774F5C1D1AA44BE649DE760A` | Mark Wielaard | bzip2 | <https://sourceware.org/pub/bzip2/gpgkey-5C1D1AA44BE649DE760A.gpg> (다운로드 페이지에 명시) |
+| `4EF4AC63455FC9F4545D9B7DEF8FE99528B52FFD` | Zstandard Release Signing Key | zstd | keyserver.ubuntu.com. Debian이 같은 키를 고정(`debian/upstream/signing-key.asc`) |
+| `FF360647C7A7147F27DAAEC1B132F881C306590A` | Gavin D. Howard | bc | keyserver.ubuntu.com만 있음(프로젝트가 키를 문서화하지 않음). sha256 고정이 주된 근거 |
+| `56C67868E93390AA1039AD1CE4B29C8D64885307` | Will Estes | flex | keyserver.ubuntu.com. Debian이 같은 키를 고정 |
+| `38A644698C69787344E954CE29EE848AE2CCF3F4` | Andrew G. Morgan | libcap | kernel.org pgpkeys `keys/29EE848AE2CCF3F4.asc` |
+| `678CE3FEE430311596DB8C16F52E98007594C21D` | Björn Esser | libxcrypt | 릴리스 첨부 `libxcrypt-gpgkey.asc`. 소스의 `make release`에 같은 키 ID가 박혀 있음 |
+| `A9348594CE31283A826FBDD8D57633D441E25BB5` | Alejandro Colomar | shadow | 저장소의 `keys/A9348594….asc` (`AUTHORS.md`가 가리킴) |
+| `5D2FB320B825D93904D205193938F96BDF50FEA5` | Craig Small | psmisc, procps-ng | keys.openpgp.org(만료일이 2028-09-16로 연장된 사본). GitLab과 keyserver.ubuntu.com 사본은 2026-10-17 만료 |
+| `FA26CA784BE188927F22B99F6570EA01146F7354` | Ileana Dumitrescu | libtool | GNU keyring과 Savannah 회원 키 목록(만료 연장본)을 합침 |
+| `4BE4E62655488EB92ABB468F79FFD94BFCE230B1` | Sergey Poznyakoff | gdbm | GNU keyring |
+| `3176EF7DB2367F1FCA4F306B1F9B0E909AF37285` | Sebastian Pipping | expat | keys.openpgp.org. Gentoo 개발자 키 디렉터리(WKD)에서도 같은 결과 |
+| `AE27252BD6846E7D6EAE1DD6F153A7C833235259` | Mark Nudelman | less | <https://www.greenwoodsoftware.com/less/pubkey.asc> (다운로드 페이지가 링크). DSA-1024 |
+| `82F854F3CE73174B8B63174091FCC32B6769AA64` | Zack Weinberg | autoconf | GNU keyring |
+| `6C222EA6B2BD216AA406516AC868F0B6DE38409D` | Kamila Szewczyk | automake | GNU keyring |
+| `B146647E45A7B33947AB226B2A2C87D161692D40` | OpenSSL | openssl | <https://openssl-library.org/source/pubkeys.asc> (소스 페이지가 신뢰 기준으로 이 지문을 명시) |
+| `6C2B631563B8D330578D3CB474FD3FA2779E7073` | Aaron Merey | elfutils | keyserver.ubuntu.com. 이전 릴리스(0.191, 0.193, 0.196)와 0.197 공지도 같은 키로 서명됨 |
+| `19E2D6D9B46D8DAA6288F877C24E631BABB1FE70` | Jussi Pakkanen | meson | keyserver.ubuntu.com. 서명된 git 태그 1.12.1도 같은 키 |
+| `EAB33C9690013C733916AC839BA2A5A630CBEA53` | Lucas De Marchi | kmod | kernel.org pgpkeys `keys/9BA2A5A630CBEA53.asc` |
+| `9F6FC345B05BE7E766B83C8F80A77F6095CDE47E` | Stephen Hemminger | iproute2 | kernel.org pgpkeys `keys/80A77F6095CDE47E.asc` |
+| `3AB057B7E78D945C8C5591FBD36F769BC11804F0` | Theodore Ts'o | e2fsprogs | kernel.org pgpkeys `keys/D36F769BC11804F0.asc` |
 
 - GNU keyring: <https://ftp.gnu.org/gnu/gnu-keyring.gpg> (2026-10-22에 받음)
 - kernel.org pgpkeys: <https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/38DBBDC86092693E.asc>

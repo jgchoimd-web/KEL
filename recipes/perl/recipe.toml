@@ -17,7 +17,7 @@ signature = "https://www.cpan.org/authors/id/L/LE/LEONT/CHECKSUMS"
 signature_type = "clearsigned-checksums"
 signing_keys = ["2E66557AB97C19C791AF8E20328DA867450F89EC"]  # PAUSE Batch Signing Key
 
-# Stage 3. Based on LFS 12.4 chapter 7.9 with the 5.44 library paths
+# Stage 3. Based on LFS 13.1 chapter 7.9 with the 5.44 library paths
 # (LFS: "the MAJOR.MINOR version of Perl").
 [bootstrap.stage3]
 script = '''

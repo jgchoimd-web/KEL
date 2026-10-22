@@ -1,10 +1,13 @@
 # Stage 2: temporary tools cross compiled with the stage 1 toolchain and
-# installed into the sysroot (docs/DESIGN.md section 5, LFS 12.4 chapter 6).
+# installed into the sysroot (docs/DESIGN.md section 5, LFS 13.1 chapter 6).
 # After this stage the sysroot can build software on its own (stage 3).
 
 [stage]
 name = "stage2"
 summary = "temporary tools: shell, core utilities, make, binutils and GCC for the target"
+# The configure runs describe the target, so kel's autoconf cache values
+# for its glibc apply (LFS 13.1 chapter 6.2).
+config_site = true
 
 [[step]]
 recipe = "m4"

@@ -12,7 +12,7 @@ sha256 = "51f74eb0f51cfa9873b85264dfdd5d46e8957ec95b88f0fb762f63d9e164c72e"
 signature = "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz.sig"
 signing_keys = ["EAF669B31E31E1DECBD11513DDBC579DAB37FBA9"]  # Gavin Smith
 
-# Stage 3. Based on LFS 12.4 chapter 7.11.
+# Stage 3. Based on LFS 13.1 chapter 7.13.
 [bootstrap.stage3]
 script = '''
 ./configure --prefix=/usr

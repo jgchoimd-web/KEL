@@ -1,11 +1,12 @@
 # Stage 3a: enter the new root and build the remaining temporary tools
-# (docs/DESIGN.md section 5, LFS 12.4 chapter 7). From here on nothing from
+# (docs/DESIGN.md section 5, LFS 13.1 chapter 7). From here on nothing from
 # the host is visible: the sysroot is mounted as / and only its own tools run.
 
 [stage]
 name = "stage3a"
-summary = "inside the new root: base layout, gettext, bison, perl, python, texinfo, util-linux"
+summary = "inside the new root: base layout, gettext, bison, perl, zlib, mpdecimal, python, texinfo, util-linux"
 root = "sysroot"
+config_site = true
 
 [[step]]
 recipe = "filesystem"
@@ -21,6 +22,14 @@ profile = "stage3"
 
 [[step]]
 recipe = "perl"
+profile = "stage3"
+
+[[step]]
+recipe = "zlib"
+profile = "stage3"
+
+[[step]]
+recipe = "mpdecimal"
 profile = "stage3"
 
 [[step]]
@@ -49,7 +58,7 @@ for t in bash gcc make perl python3 msgfmt bison makeinfo mount; do
 done
 printf 'int main(void){return 0;}\n' > t.c
 gcc t.c -o t && ./t
-python3 -c 'import sys; print("python", sys.version.split()[0])'
+python3 -c 'import sys, zlib, decimal; print("python", sys.version.split()[0])'
 perl -e 'print "perl $^V\n"'
 echo "STAGE3A VERIFY OK"
 '''

@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/gawk/gawk-5.4.1.tar.xz.sig"
 signing_keys = ["D1967C63788713177D861ED7DF597815937EC0D2"]  # Arnold Robbins
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 sed -i 's/extras//' Makefile.in

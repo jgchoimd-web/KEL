@@ -13,7 +13,7 @@ signature = "https://ftp.gnu.org/gnu/gzip/gzip-1.15.tar.xz.sig"
 signing_keys = ["155D3FC500C834486D1EEA677FD9FCCB000BEEEE"]  # Jim Meyering
 
 # Stage 2: cross compiled temporary tool, installed into the sysroot.
-# Based on LFS 12.4 chapter 6.
+# Based on LFS 13.1 chapter 6.
 [bootstrap.stage2]
 script = '''
 ./configure --prefix=/usr --host="$KEL_TARGET"

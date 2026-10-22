@@ -99,6 +99,8 @@ class Recipe:
     bootstrap: dict[str, Profile] = field(default_factory=dict)
     path: Path = Path()
     digest: str = ""
+    # Files next to recipe.toml (files/, patches/); "" if there are none.
+    support_digest: str = ""
     depends: tuple[str, ...] = ()
     provides: tuple[str, ...] = ()
     replaces: tuple[str, ...] = ()
@@ -282,14 +284,21 @@ def _parse_source(where: str, raw: dict, keydir: Path) -> Source:
     )
 
 
-def recipe_digest(recipe_dir: Path) -> str:
-    """Hash every file in the recipe directory, so patch edits invalidate builds."""
+def recipe_digest(recipe_dir: Path, exclude: tuple[str, ...] = ()) -> str:
+    """Hash every file in the recipe directory, so patch edits invalidate builds.
+
+    Returns "" if there is nothing to hash (all files excluded).
+    """
     h = hashlib.sha256()
+    found = False
     for path in sorted(p for p in recipe_dir.rglob("*") if p.is_file()):
         rel = path.relative_to(recipe_dir).as_posix()
+        if rel in exclude or "__pycache__" in path.parts:
+            continue
+        found = True
         h.update(rel.encode() + b"\0")
         h.update(hashlib.sha256(path.read_bytes()).digest())
-    return h.hexdigest()
+    return h.hexdigest() if found else ""
 
 
 def parse_recipe(path: Path, keydir: Path) -> Recipe:
@@ -372,6 +381,7 @@ def parse_recipe(path: Path, keydir: Path) -> Recipe:
         bootstrap=profiles,
         path=path,
         digest=recipe_digest(path.parent),
+        support_digest=recipe_digest(path.parent, exclude=(path.name,)),
         depends=depends,
         provides=provides,
         replaces=replaces,
