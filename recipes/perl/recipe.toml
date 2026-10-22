@@ -35,3 +35,43 @@ sh Configure -des \
 make
 make install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.46, with the library paths derived
+# from the version like the stage3 profile. KEL deviations: Configure ignores
+# $CFLAGS, so KEL's compiler flags are passed as optimize (they also become
+# the flags for XS modules built later); installed into DESTDIR; the license
+# files are named Copying and Artistic, so they are installed here.
+[build]
+style = "make"
+depends = ["zlib", "bzip2", "gdbm", "libxcrypt"]
+configure = '''
+v="${KEL_VERSION_PERL%.*}"
+sh Configure -des \
+             -D prefix=/usr \
+             -D vendorprefix=/usr \
+             -D privlib="/usr/lib/perl5/$v/core_perl" \
+             -D archlib="/usr/lib/perl5/$v/core_perl" \
+             -D sitelib="/usr/lib/perl5/$v/site_perl" \
+             -D sitearch="/usr/lib/perl5/$v/site_perl" \
+             -D vendorlib="/usr/lib/perl5/$v/vendor_perl" \
+             -D vendorarch="/usr/lib/perl5/$v/vendor_perl" \
+             -D man1dir=/usr/share/man/man1 \
+             -D man3dir=/usr/share/man/man3 \
+             -D pager="/usr/bin/less -isR" \
+             -D optimize="$CFLAGS" \
+             -D useshrplib \
+             -D usethreads
+'''
+# LFS: Compress::Raw::Zlib and Compress::Raw::Bzip2 use the system zlib and
+# bzip2 instead of their bundled copies (read when the extensions are
+# configured during make).
+compile = '''
+export BUILD_ZLIB=False BUILD_BZIP2=0
+make
+'''
+test = '''
+TEST_JOBS="$KEL_JOBS" make test_harness
+'''
+post_install = '''
+install -vDm644 -t "$DESTDIR/usr/share/licenses/perl" Copying Artistic
+'''
