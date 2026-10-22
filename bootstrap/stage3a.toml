@@ -1,0 +1,55 @@
+# Stage 3a: enter the new root and build the remaining temporary tools
+# (docs/DESIGN.md section 5, LFS 12.4 chapter 7). From here on nothing from
+# the host is visible: the sysroot is mounted as / and only its own tools run.
+
+[stage]
+name = "stage3a"
+summary = "inside the new root: base layout, gettext, bison, perl, python, texinfo, util-linux"
+root = "sysroot"
+
+[[step]]
+recipe = "filesystem"
+profile = "stage3"
+
+[[step]]
+recipe = "gettext"
+profile = "stage3"
+
+[[step]]
+recipe = "bison"
+profile = "stage3"
+
+[[step]]
+recipe = "perl"
+profile = "stage3"
+
+[[step]]
+recipe = "python"
+profile = "stage3"
+
+[[step]]
+recipe = "texinfo"
+profile = "stage3"
+
+[[step]]
+recipe = "util-linux"
+profile = "stage3"
+
+[[step]]
+recipe = "filesystem"
+profile = "stage3-cleanup"
+
+[verify]
+script = '''
+cd "$KEL_WORKDIR"
+test ! -e /tools
+. /etc/os-release && echo "inside: $PRETTY_NAME (ID=$ID)"
+for t in bash gcc make perl python3 msgfmt bison makeinfo mount; do
+  command -v "$t" >/dev/null || { echo "missing $t"; exit 1; }
+done
+printf 'int main(void){return 0;}\n' > t.c
+gcc t.c -o t && ./t
+python3 -c 'import sys; print("python", sys.version.split()[0])'
+perl -e 'print "perl $^V\n"'
+echo "STAGE3A VERIFY OK"
+'''

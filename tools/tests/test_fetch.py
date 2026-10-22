@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kel.fetch import fetch_source, gpg_verify, parse_gpg_status
+from kel.fetch import fetch_source, gpg_verify, gpg_verify_clearsigned, parse_gpg_status
 from kel.recipe import Source
 from kel.util import KelError, sha256_file
 
@@ -81,6 +81,24 @@ class RealGpgTests(unittest.TestCase):
         self.assertFalse(gpg_verify([self.keyfile], (OTHER,), sig, data).ok)
         data.write_text("hello kel, tampered\n")
         self.assertFalse(gpg_verify([self.keyfile], (self.fpr,), sig, data).ok)
+
+    def test_clearsigned_checksums(self):
+        data = self.work / "pkg-1.0.tar.xz"
+        data.write_bytes(b"release bytes\n")
+        sha = sha256_file(data)
+        listing = self.work / "CHECKSUMS"
+        listing.write_text(f"'pkg-1.0.tar.xz' => {{ 'sha256' => '{sha}' }}\n")
+        signed = self.work / "CHECKSUMS.asc"
+        subprocess.run(self.base + ["--clearsign", "--output", str(signed), str(listing)],
+                       check=True, capture_output=True)
+        ok = gpg_verify_clearsigned([self.keyfile], (self.fpr,), signed, ["pkg-1.0.tar.xz", sha])
+        self.assertTrue(ok.ok, ok.notes)
+        bad = gpg_verify_clearsigned([self.keyfile], (self.fpr,), signed, ["pkg-1.0.tar.xz", "0" * 64])
+        self.assertFalse(bad.ok)
+        tampered = signed.read_text().replace(sha, "f" * 64)
+        signed.write_text(tampered)
+        self.assertFalse(gpg_verify_clearsigned([self.keyfile], (self.fpr,), signed,
+                                                ["pkg-1.0.tar.xz", "f" * 64]).ok)
 
     def test_signature_over_uncompressed_data(self):
         raw = self.work / "archive.tar"

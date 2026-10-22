@@ -26,7 +26,10 @@ FINGERPRINT_RE = re.compile(r"^[0-9A-F]{40}$")
 PROFILE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 SPDX_TOKEN_RE = re.compile(r"\(|\)|[A-Za-z0-9][A-Za-z0-9.+-]*(?::[A-Za-z0-9.+-]+)?")
 
-SIGNATURE_TYPES = ("detached", "detached-uncompressed")
+# detached: signature over the file itself. detached-uncompressed: over the
+# decompressed file (kernel.org). clearsigned-checksums: a clearsigned list of
+# checksums that must name this file and its sha256 (e.g. CPAN's CHECKSUMS).
+SIGNATURE_TYPES = ("detached", "detached-uncompressed", "clearsigned-checksums")
 
 TOP_LEVEL_KEYS = {"schema", "package", "source", "bootstrap", "build", "subpackages"}
 PACKAGE_KEYS = {"name", "version", "revision", "summary", "license", "homepage",

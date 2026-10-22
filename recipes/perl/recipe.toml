@@ -1,0 +1,37 @@
+[package]
+name = "perl"
+version = "5.44.0"
+revision = 0
+summary = "Practical Extraction and Report Language"
+license = "Artistic-1.0-Perl OR GPL-1.0-or-later"
+homepage = "https://www.perl.org/"
+
+# CPAN does not sign the tarball itself; PAUSE clearsigns the uploader's
+# CHECKSUMS file, which must list this file with this sha256. The key
+# published on pause.perl.org lacked the 2026 subkey; the refreshed copy of
+# the same primary came from keyserver.ubuntu.com (checked 2026-10-22).
+[[source]]
+url = "https://www.cpan.org/src/5.0/perl-5.44.0.tar.xz"
+sha256 = "505cf43912e9480495c344c70260452e32aa2a73c546a026b3f100053b23ce91"
+signature = "https://www.cpan.org/authors/id/L/LE/LEONT/CHECKSUMS"
+signature_type = "clearsigned-checksums"
+signing_keys = ["2E66557AB97C19C791AF8E20328DA867450F89EC"]  # PAUSE Batch Signing Key
+
+# Stage 3. Based on LFS 12.4 chapter 7.9 with the 5.44 library paths
+# (LFS: "the MAJOR.MINOR version of Perl").
+[bootstrap.stage3]
+script = '''
+v="${KEL_VERSION_PERL%.*}"
+sh Configure -des \
+             -D prefix=/usr \
+             -D vendorprefix=/usr \
+             -D useshrplib \
+             -D privlib="/usr/lib/perl5/$v/core_perl" \
+             -D archlib="/usr/lib/perl5/$v/core_perl" \
+             -D sitelib="/usr/lib/perl5/$v/site_perl" \
+             -D sitearch="/usr/lib/perl5/$v/site_perl" \
+             -D vendorlib="/usr/lib/perl5/$v/vendor_perl" \
+             -D vendorarch="/usr/lib/perl5/$v/vendor_perl"
+make
+make install
+'''

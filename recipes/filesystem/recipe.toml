@@ -42,3 +42,12 @@ touch /var/log/{btmp,lastlog,faillog,wtmp}
 chmod -v 664 /var/log/lastlog
 chmod -v 600 /var/log/btmp
 '''
+
+# End of stage 3a: drop documentation and libtool archives of the temporary
+# tools and the cross toolchain (LFS 12.4 chapter 7.13).
+[bootstrap.stage3-cleanup]
+script = '''
+rm -rf /usr/share/{info,man,doc}/*
+find /usr/{lib,libexec} -name '*.la' -delete
+rm -rf /tools
+'''

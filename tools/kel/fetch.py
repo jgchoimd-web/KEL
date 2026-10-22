@@ -145,6 +145,33 @@ def gpg_verify(keyfiles: list[Path], pinned: tuple[str, ...], sig: Path, data: P
     return parse_gpg_status(status, pinned)
 
 
+def gpg_verify_clearsigned(keyfiles: list[Path], pinned: tuple[str, ...], signed: Path,
+                           must_contain: list[str]) -> SignatureResult:
+    """Verify a clearsigned text and require strings in its verified content."""
+    if shutil.which("gpg") is None:
+        raise KelError("gpg is required to verify upstream signatures")
+    with tempfile.TemporaryDirectory(prefix="kel-gpg-") as home:
+        os.chmod(home, 0o700)
+        base = ["gpg", "--batch", "--no-tty", "--no-autostart", "--homedir", home]
+        imp = subprocess.run(base + ["--quiet", "--import", *map(str, keyfiles)],
+                             capture_output=True, text=True)
+        if imp.returncode != 0:
+            raise KelError(f"gpg could not import keys: {imp.stderr.strip()}")
+        status_file = Path(home) / "status"
+        plain = Path(home) / "plain"
+        subprocess.run(base + ["--status-file", str(status_file), "--output", str(plain),
+                               "--decrypt", str(signed)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        status = status_file.read_text() if status_file.exists() else ""
+        content = plain.read_text(errors="replace") if plain.exists() else ""
+    result = parse_gpg_status(status, pinned)
+    missing = [s for s in must_contain if s not in content]
+    if missing:
+        result.ok = False
+        result.notes.append(f"signed checksums do not mention: {', '.join(missing)}")
+    return result
+
+
 def fetch_source(cache: Path, keydir: Path, source: Source, offline: bool = False) -> Path:
     """Make sure the source is in the cache with the right hash and signature."""
     path = source_path(cache, source)
@@ -183,8 +210,12 @@ def verify_source_signature(cache: Path, keydir: Path, source: Source, path: Pat
             raise KelError(f"signature {sig_name} is not in the cache and --offline was given")
         download(source.signature, sig_path)
     keyfiles = [keydir / f"{fpr}.asc" for fpr in source.signing_keys]
-    result = gpg_verify(keyfiles, source.signing_keys, sig_path, path,
-                        uncompressed=source.signature_type == "detached-uncompressed")
+    if source.signature_type == "clearsigned-checksums":
+        result = gpg_verify_clearsigned(keyfiles, source.signing_keys, sig_path,
+                                        [source.filename, source.sha256])
+    else:
+        result = gpg_verify(keyfiles, source.signing_keys, sig_path, path,
+                            uncompressed=source.signature_type == "detached-uncompressed")
     for note in result.notes:
         warn(f"{source.filename}: {note}")
     if not result.ok:

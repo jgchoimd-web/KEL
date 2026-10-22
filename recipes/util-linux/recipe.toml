@@ -1,0 +1,37 @@
+[package]
+name = "util-linux"
+version = "2.42.4"
+revision = 0
+summary = "Essential Linux system utilities and libraries (libblkid, libmount, libuuid)"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://github.com/util-linux/util-linux"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.xz"
+sha256 = "fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec"
+signature = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284"]  # Karel Zak
+
+# Stage 3. Based on LFS 12.4 chapter 7.12.
+[bootstrap.stage3]
+script = '''
+mkdir -pv /var/lib/hwclock
+./configure --libdir=/usr/lib \
+            --runstatedir=/run \
+            --disable-chfn-chsh \
+            --disable-login \
+            --disable-nologin \
+            --disable-su \
+            --disable-setpriv \
+            --disable-runuser \
+            --disable-pylibmount \
+            --disable-static \
+            --disable-liblastlog2 \
+            --without-python \
+            ADJTIME_PATH=/var/lib/hwclock/adjtime \
+            --docdir="/usr/share/doc/util-linux-$KEL_VERSION_UTIL_LINUX"
+make
+make install
+'''
