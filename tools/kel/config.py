@@ -83,9 +83,14 @@ class Layout:
         # Bootstrap-only tools built for the host (e.g. apk for packaging).
         return self.arch_root(arch) / "host-tools"
 
-    def repository(self, arch: Arch) -> Path:
-        # apk layout: <base>/<arch>/Packages.adb and <base>/<arch>/*.apk
-        return self.arch_root(arch) / "repo" / arch.name
+    def repository(self, arch: Arch, name: str = "repo") -> Path:
+        # apk layout: <base>/<arch>/Packages.adb and <base>/<arch>/*.apk.
+        # "repo" is stage 3's; rebuild stages write their own (e.g. repo-stage4).
+        return self.arch_root(arch) / name / arch.name
+
+    def buildroots(self, arch: Arch) -> Path:
+        # Roots composed from packages by KEL's apk (stage 4 onwards).
+        return self.arch_root(arch) / "buildroots"
 
     def keys(self) -> Path:
         # Development signing key (never committed, never published).

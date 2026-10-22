@@ -19,7 +19,7 @@ from pathlib import Path
 
 from kel.elf import ET_DYN, read_elf
 from kel.recipe import Recipe
-from kel.sandbox import bwrap_command
+from kel.sandbox import bwrap_command, bwrap_root_command
 from kel.util import KelError, log
 
 # Merged /usr (DESIGN.md 4.7): these paths may only be shipped as exactly
@@ -186,15 +186,19 @@ def resolve_dependencies(parts: list[PackagePart]) -> list[str]:
     return problems
 
 
+def dev_key_paths(keydir: Path) -> tuple[Path, Path]:
+    """(private key, public key) of the development signing key in keydir."""
+    # Public key in its own directory: apk --keys-dir reads every file there.
+    return keydir / "kel-dev.rsa", keydir / "trusted" / "kel-dev.rsa.pub"
+
+
 def ensure_dev_key(keydir: Path) -> tuple[Path, Path]:
     """Throwaway RSA-4096 signing key for development builds (D-014, D-019).
 
     It lives under the work directory, is never committed and is never used
     for anything published.
     """
-    priv = keydir / "kel-dev.rsa"
-    # Public key in its own directory: apk --keys-dir reads every file there.
-    pub = keydir / "trusted" / "kel-dev.rsa.pub"
+    priv, pub = dev_key_paths(keydir)
     pub.parent.mkdir(parents=True, exist_ok=True)
     if not priv.exists():
         subprocess.run(["openssl", "genrsa", "-out", str(priv), "4096"], check=True,
@@ -206,18 +210,101 @@ def ensure_dev_key(keydir: Path) -> tuple[Path, Path]:
     return priv, pub
 
 
-def _run_as_root(argv: list[str], rw: list[Path], env: dict[str, str]) -> None:
-    cmd = bwrap_command(argv, chdir=rw[0], env=env, rw_binds=rw, as_root=True)
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise KelError(f"{argv[1]} failed: {(proc.stdout + proc.stderr).strip()}")
+# Where host directories appear when apk runs from a tools root. /run is a
+# fresh tmpfs in the sandbox, so the mount points are not created in the
+# (read-only) tools root itself.
+HOST_PREFIX = "/run/host"
 
 
-def make_apk(apk: Path, part: PackagePart, recipe: Recipe, arch_name: str, outdir: Path,
-             key: Path, build_time: str) -> Path:
+def _outermost(paths: list[Path]) -> list[Path]:
+    """Drop paths inside another listed path; parents come first."""
+    out: list[Path] = []
+    for p in sorted({Path(p) for p in paths}, key=lambda p: (len(p.parts), str(p))):
+        if not p.is_absolute():
+            raise KelError(f"apk sandbox paths must be absolute: {p}")
+        if not any(p == q or q in p.parents for q in out):
+            out.append(p)
+    return out
+
+
+@dataclass(frozen=True)
+class ApkTool:
+    """An apk binary and the sandbox it runs in.
+
+    root=None: binary is a host program (the bootstrap's host-tools apk) and
+    runs with the host visible read-only (stage 3). Otherwise binary is a
+    path inside root, a KEL userland mounted read-only as / (stage 4 on:
+    KEL's own apk, nothing from the host is used), and host directories
+    appear inside under HOST_PREFIX. Either way apk runs as uid 0 in a user
+    namespace, and only the directories given to run() are visible.
+    """
+
+    binary: Path
+    root: Path | None = None
+
+    def path(self, p: Path) -> str:
+        """How apk sees host path p (p must be inside a directory given to run())."""
+        return str(p) if self.root is None else HOST_PREFIX + str(p)
+
+    def command(self, applet: str, args: list[str], *, global_args: list[str] = (),
+                rw: list[Path] = (), ro: list[Path] = (), chroot_into: Path | None = None,
+                env: dict[str, str] | None = None) -> list[str]:
+        """The sandboxed apk command line.
+
+        rw/ro are host directories apk may write or read. Writable binds are
+        mounted first, so a read-only directory may lie inside a writable one
+        but not the other way round. chroot_into is the --root apk installs
+        into: apk runs package scripts chrooted there.
+        """
+        rw, ro = _outermost(list(rw)), _outermost(list(ro))
+        for p in rw:
+            hidden = [q for q in ro if q == p or q in p.parents]
+            if hidden:
+                raise KelError(f"cannot bind {p} writable inside read-only {hidden[0]}")
+        argv = [str(self.binary), *global_args, applet, *args]
+        env = {"PATH": "/usr/bin:/bin", **(env or {})}
+        chroot = [self.path(chroot_into)] if chroot_into else []
+        if self.root is None:
+            return bwrap_command(argv, chdir=Path("/"), env=env, rw_binds=rw, ro_binds=ro,
+                                 as_root=True, chroot_into=chroot)
+        return bwrap_root_command(argv, root=self.root, chdir="/", env=env,
+                                  binds=[(p, self.path(p)) for p in rw],
+                                  ro_binds=[(p, self.path(p)) for p in ro],
+                                  readonly=True, chroot_into=chroot)
+
+    def run(self, applet: str, args: list[str], *, logfile: Path | None = None,
+            **kwargs) -> str:
+        """Run apk (see command()); return its standard output.
+
+        With logfile, the whole output goes there instead and "" is returned.
+        """
+        cmd = self.command(applet, args, **kwargs)
+        if logfile is None:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            output = proc.stdout + proc.stderr
+        else:
+            logfile.parent.mkdir(parents=True, exist_ok=True)
+            with open(logfile, "w") as out:
+                proc = subprocess.run(cmd, stdout=out, stderr=subprocess.STDOUT, text=True)
+            output = logfile.read_text(errors="replace")
+        if proc.returncode != 0:
+            tail = "\n".join(output.strip().splitlines()[-40:])
+            where = f"; log: {logfile}" if logfile else ""
+            raise KelError(f"apk {applet} failed (exit {proc.returncode}){where}:\n{tail}")
+        return proc.stdout if logfile is None else ""
+
+
+def _apk_tool(apk: Path | ApkTool) -> ApkTool:
+    return apk if isinstance(apk, ApkTool) else ApkTool(apk)
+
+
+def make_apk(apk: Path | ApkTool, part: PackagePart, recipe: Recipe, arch_name: str,
+             outdir: Path, key: Path, build_time: str) -> Path:
+    """Create one signed package; apk is a host binary path or an ApkTool."""
+    tool = _apk_tool(apk)
     outdir.mkdir(parents=True, exist_ok=True)
     out = outdir / f"{part.name}-{recipe.pkgver}.apk"
-    argv = [str(apk), "mkpkg", "--files", str(part.root),
+    args = ["--files", tool.path(part.root),
             "--info", f"name:{part.name}",
             "--info", f"version:{recipe.pkgver}",
             "--info", f"arch:{arch_name}",
@@ -229,21 +316,26 @@ def make_apk(apk: Path, part: PackagePart, recipe: Recipe, arch_name: str, outdi
     for key_name, values in (("depends", part.depends), ("provides", part.provides),
                              ("replaces", part.replaces)):
         if values:
-            argv += ["--info", f"{key_name}:{' '.join(values)}"]
-    argv += ["--sign-key", str(key), "--output", str(out)]
-    env = {"PATH": "/usr/bin:/bin", "SOURCE_DATE_EPOCH": build_time}
-    _run_as_root(argv, [outdir, part.root.parent, key.parent], env)
+            args += ["--info", f"{key_name}:{' '.join(values)}"]
+    args += ["--sign-key", tool.path(key), "--output", tool.path(out)]
+    tool.run("mkpkg", args, rw=[outdir], ro=[part.root, key.parent],
+             env={"SOURCE_DATE_EPOCH": build_time})
     return out
 
 
-def make_index(apk: Path, repodir: Path, key: Path, pubkey: Path, description: str) -> Path:
-    pkgs = sorted(str(p) for p in repodir.glob("*.apk"))
+def make_index(apk: Path | ApkTool, repodir: Path, key: Path, pubkey: Path,
+               description: str) -> Path:
+    """Sign a new index of every package in repodir; apk as for make_apk."""
+    tool = _apk_tool(apk)
+    pkgs = sorted(repodir.glob("*.apk"))
     if not pkgs:
         raise KelError(f"no packages in {repodir}")
     index = repodir / "Packages.adb"
-    argv = [str(apk), "--keys-dir", str(pubkey.parent), "mkndx", "--output", str(index),
-            "--description", description, "--sign-key", str(key), *pkgs]
-    _run_as_root(argv, [repodir, key.parent], {"PATH": "/usr/bin:/bin"})
+    # --keys-dir must be absolute: a relative one is taken relative to apk's root.
+    tool.run("mkndx", ["--output", tool.path(index), "--description", description,
+                       "--sign-key", tool.path(key), *(tool.path(p) for p in pkgs)],
+             global_args=["--keys-dir", tool.path(pubkey.parent)],
+             rw=[repodir], ro=[key.parent, pubkey.parent])
     log(f"index: {index} ({len(pkgs)} packages)")
     return index
 

@@ -8,6 +8,7 @@ import sys
 
 from kel import __version__
 from kel.bootstrap import base_env, load_stage, run_stage, verify_stage
+from kel.buildroot import verify_rebuild_stage
 from kel.config import ARCHES, Layout, get_arch
 from kel.fetch import fetch_recipe
 from kel.hostcheck import check_host
@@ -55,7 +56,11 @@ def cmd_bootstrap(args: argparse.Namespace, layout: Layout) -> int:
         stage = load_stage(layout, args.stage)
         recipes = {s.recipe: load_recipe(layout.recipes, layout.upstream_keys, s.recipe)
                    for s in stage.steps}
-        verify_stage(layout, arch, stage, base_env(layout, arch, args.jobs, recipes, stage.root))
+        env = base_env(layout, arch, args.jobs, recipes, stage.root)
+        if stage.kind == "rebuild":
+            verify_rebuild_stage(layout, arch, stage, env, keep=args.keep)
+        else:
+            verify_stage(layout, arch, stage, env)
         return 0
     run_stage(layout, arch, args.stage, jobs=args.jobs, force=args.force, keep=args.keep,
               only=args.step, offline=args.offline)
