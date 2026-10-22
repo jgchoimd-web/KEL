@@ -26,3 +26,9 @@ make install
 [build]
 style = "gnu-configure"
 configure_args = ["--disable-static"]
+# LFS: plain 'make check' downloads the official test cases (no network
+# here); check_local runs the tests that ship in the tarball.
+test = '''
+cd build
+make check_local
+'''
