@@ -51,6 +51,9 @@
 | `EAB33C9690013C733916AC839BA2A5A630CBEA53` | Lucas De Marchi | kmod | kernel.org pgpkeys `keys/9BA2A5A630CBEA53.asc` |
 | `9F6FC345B05BE7E766B83C8F80A77F6095CDE47E` | Stephen Hemminger | iproute2 | kernel.org pgpkeys `keys/80A77F6095CDE47E.asc` |
 | `3AB057B7E78D945C8C5591FBD36F769BC11804F0` | Theodore Ts'o | e2fsprogs | kernel.org pgpkeys `keys/D36F769BC11804F0.asc` |
+| `A95536204A3BB489715231282A98E77EB6F24CA8` | Nicholas Wilson (PCRE2) | pcre2 | keys.openpgp.org. 지문은 pcre2의 `SECURITY.md`에 명시 |
+| `D231B45ECB0B7BD8F6E7A682CE9D6843AABACC90` | Jacob Bachmeyer (2021 DejaGnu Release Signing Key) | dejagnu | GNU keyring과 Savannah dejagnu 그룹 릴리스 keyring(이 키만 있음). 2022-01-10 만료, dejagnu 1.6.3은 그 전(2021-06-17)에 서명됨 |
+| `7E3792A9D8ACF7D633BC1588ED97E90E62AA7E34` | Paul Eggert (tz 관리자) | tzdata | GNU keyring 사본(만료 표시)과 keys.openpgp.org 사본(2031-07-24까지)을 합침 |
 
 - GNU keyring: <https://ftp.gnu.org/gnu/gnu-keyring.gpg> (2026-10-22에 받음)
 - kernel.org pgpkeys: <https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/38DBBDC86092693E.asc>
@@ -80,6 +83,18 @@ perl은 tarball에 대한 OpenPGP 서명을 따로 내지 않는다. 대신 CPAN
   Phase 4에서 Sigstore 검증을 도구에 넣을 때 다시 본다. 업스트림 Sigstore 번들은 2026-10-22 기준으로
   `.tar.xz`용 번들이 `.tar.gz`의 digest에 서명되어 있어 그대로는 쓸 수 없었다
   (`docs/research/2026-10-22-stage3a-sources.md` 참고).
+
+## 서명된 git 태그로만 확인한 소스
+
+`kel`은 git 태그 서명을 검증하지 못한다. 다음 소스는 tarball에 분리 서명이 없어서 sha256만 고정하고,
+레시피 작성 때 서명된 태그와 tarball 내용이 같은지 따로 확인했다(키는 저장하지 않음).
+
+| 소스 | 태그 서명 키 | 확인 내용 |
+|---|---|---|
+| systemd 262.1 | `A9EA9081724FFAE0484C35A1A81CEA22BC8C7E2E` (Luca Boccassi) | tarball이 `git archive --prefix=systemd-262.1/ v262.1 \| gzip -cn` 결과와 바이트 단위로 같음 |
+| bubblewrap 0.13.1 | `252C6FEA78A69D3BC0AD458A616C5BDC0C29AB04` (Alexander Larsson) | 릴리스 tarball의 파일 트리가 태그 v0.13.1과 같음 |
+| ninja 1.13.2 | (태그 서명 없음) | `git archive`로 만든 tarball의 MD5가 LFS 13.1 기록과 같음 |
+| scdoc 1.11.5 | (태그 서명 없음) | tarball의 sha512가 Arch Linux PKGBUILD 기록과 같음 |
 
 ## 새 키를 추가할 때
 
