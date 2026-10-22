@@ -1,0 +1,39 @@
+# KEL — 커밋 금지 항목
+# 비밀 정보(서명 개인 키 등)는 어떤 경우에도 저장소에 넣지 않는다.
+# 공개 키는 keys/ 아래에 *.pub / *.asc(공개 키) 형식으로만 둔다.
+
+# 서명 개인 키 / 비밀 정보
+*.key
+*.sec
+*.secret
+*.priv
+*.pem
+*.p12
+*.pfx
+*.rsa
+!*.rsa.pub
+secring.*
+private-keys-v1.d/
+secrets/
+.env
+.env.*
+
+# 빌드 산출물과 캐시 (재현 가능한 빌드로 언제든 다시 만든다)
+/out/
+/work/
+/cache/
+/sources/
+/sysroot/
+*.apk
+*.iso
+*.img
+*.qcow2
+*.tar.zst
+*.log
+
+# 개발 환경
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.pytest_cache/
