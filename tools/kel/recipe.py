@@ -34,7 +34,8 @@ SIGNATURE_TYPES = ("detached", "detached-uncompressed", "clearsigned-checksums")
 TOP_LEVEL_KEYS = {"schema", "package", "source", "bootstrap", "build", "subpackages"}
 PACKAGE_KEYS = {"name", "version", "revision", "summary", "license", "homepage",
                 "depends", "provides", "replaces"}
-SOURCE_KEYS = {"url", "sha256", "filename", "signature", "signature_type", "signing_keys", "dest"}
+SOURCE_KEYS = {"url", "sha256", "filename", "signature", "signature_type", "signing_keys", "dest",
+               "topdir"}
 PROFILE_KEYS = {"script"}
 BUILD_STYLES = ("gnu-configure", "meson", "cmake", "make", "custom")
 BUILD_PHASES = ("prepare", "configure", "compile", "test", "install", "post_install")
@@ -57,6 +58,9 @@ class Source:
     # If set, the extracted top-level directory of this source is moved to
     # this path inside the main (first) source tree, e.g. GCC's "gmp".
     dest: str | None = None
+    # False for archives without a single top-level directory (e.g. tzdata):
+    # their contents are unpacked straight into the source tree.
+    topdir: bool = True
 
 
 @dataclass(frozen=True)
@@ -273,6 +277,9 @@ def _parse_source(where: str, raw: dict, keydir: Path) -> Source:
     if dest is not None:
         if not isinstance(dest, str) or not dest or dest.startswith("/") or ".." in PurePosixPath(dest).parts:
             raise _fail(where, f"bad dest {dest!r}")
+    topdir = raw.get("topdir", True)
+    if not isinstance(topdir, bool):
+        raise _fail(where, "topdir must be true or false")
     return Source(
         url=url,
         sha256=sha256,
@@ -281,6 +288,7 @@ def _parse_source(where: str, raw: dict, keydir: Path) -> Source:
         signature_type=sig_type,
         signing_keys=tuple(keys),
         dest=dest,
+        topdir=topdir,
     )
 
 

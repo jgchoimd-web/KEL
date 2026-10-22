@@ -74,6 +74,26 @@ class UnpackTests(unittest.TestCase):
             self.assertEqual((work / "sources" / "fix-001").read_text(), "--- a\n+++ b\n")
 
 
+class NoTopdirTests(unittest.TestCase):
+    def test_archive_without_top_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            with tarfile.open(tmp / "tz.tar.gz", "w:gz") as tar:
+                for name in ("africa", "europe"):
+                    info = tarfile.TarInfo(name)
+                    info.size = 3
+                    tar.addfile(info, io.BytesIO(b"tz\n"))
+            recipe = Recipe(name="tzdata", version="2026c", revision=0, summary="s",
+                            license="LicenseRef-Public-Domain", homepage="https://example.org/",
+                            sources=(Source("https://e/tz.tar.gz", "0" * 64, "tz.tar.gz",
+                                            topdir=False),))
+            work = tmp / "work"
+            work.mkdir()
+            src = unpack_sources(recipe, [tmp / "tz.tar.gz"], work)
+            self.assertEqual(sorted(p.name for p in src.iterdir()), ["africa", "europe"])
+            self.assertEqual(sorted(p.name for p in work.iterdir()), ["src"])
+
+
 class NativeRecipeTests(unittest.TestCase):
     def test_files_dir_becomes_source_tree(self):
         with tempfile.TemporaryDirectory() as tmp:

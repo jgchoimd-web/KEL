@@ -160,8 +160,12 @@ def prepare_sysroot(layout: Layout, arch: Arch) -> Path:
     return root
 
 
-def _extract(archive: Path, into: Path) -> Path:
-    """Unpack an archive with a single top-level directory; return that directory."""
+def _extract(archive: Path, into: Path, topdir: bool = True) -> Path:
+    """Unpack an archive with a single top-level directory; return that directory.
+
+    With topdir=False the archive's contents themselves form the tree, and
+    the directory they were unpacked into is returned.
+    """
     into.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(dir=into, prefix=".x-"))
     try:
@@ -170,6 +174,10 @@ def _extract(archive: Path, into: Path) -> Path:
     except subprocess.CalledProcessError as e:
         shutil.rmtree(tmp, ignore_errors=True)
         raise KelError(f"cannot unpack {archive.name}: {e.stderr.decode(errors='replace').strip()}")
+    if not topdir:
+        wrapper = Path(tempfile.mkdtemp(dir=into, prefix=".w-"))
+        tmp.rename(wrapper / "tree")
+        return wrapper / "tree"
     entries = list(tmp.iterdir())
     if len(entries) != 1 or not entries[0].is_dir():
         shutil.rmtree(tmp, ignore_errors=True)
@@ -191,7 +199,7 @@ def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
         else:
             srcdir.mkdir()
         return srcdir
-    main = _extract(paths[0], workdir)
+    main = _extract(paths[0], workdir, recipe.sources[0].topdir)
     main.rename(srcdir)
     shutil.rmtree(main.parent, ignore_errors=True)
     for source, path in zip(recipe.sources[1:], paths[1:]):
@@ -201,7 +209,7 @@ def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
             extra.mkdir(exist_ok=True)
             shutil.copy2(path, extra / source.filename)
             continue
-        top = _extract(path, workdir)
+        top = _extract(path, workdir, source.topdir)
         target = srcdir / source.dest
         if target.exists():
             raise KelError(f"{recipe.name}: {source.dest} already exists in the source tree")
