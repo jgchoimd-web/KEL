@@ -4,7 +4,8 @@ A stage is bootstrap/<name>.toml: an ordered list of (recipe, profile) steps
 plus an optional verification script. Each step runs the recipe's
 [bootstrap.<profile>] script inside the sandbox, with the sources already
 fetched, verified and unpacked. Finished steps leave a stamp so an
-interrupted bootstrap resumes where it stopped.
+interrupted bootstrap resumes where it stopped. Stages of kind "rebuild"
+(stage 4 onwards) are run by kel.buildroot.
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ from kel.config import Arch, Layout
 from kel.fetch import fetch_recipe
 from kel.recipe import NAME_RE, PROFILE_RE, Recipe, load_recipe
 from kel.build import build_script
-from kel.pkg import (check_conflicts, check_policy, ensure_dev_key, install_into_root, make_apk,
-                     make_index, resolve_dependencies, split_subpackages, write_manifests)
+from kel.pkg import (ApkTool, PackagePart, check_conflicts, check_policy, ensure_dev_key,
+                     install_into_root, make_apk, make_index, resolve_dependencies,
+                     split_subpackages, write_manifests)
 from kel.sandbox import bwrap_command, bwrap_root_command, require_bwrap
 from kel.util import KelError, Timer, format_duration, log
 
@@ -54,6 +56,12 @@ def package_cflags(arch: Arch) -> str:
 # host tools to build the cross toolchain). "sysroot": the sysroot becomes /
 # (stage 3 onwards, nothing from the host is used).
 STAGE_ROOTS = ("host", "sysroot")
+
+# "build": steps run in the stage root and change it (stages 1-3). "rebuild":
+# package steps run in a root composed from input_repo by the apk of
+# tools_root and go to output_repo; nothing is installed (stage 4 onwards).
+STAGE_KINDS = ("build", "rebuild")
+REBUILD_KEYS = ("input_repo", "output_repo", "tools_root")
 
 # Where the recipe directory (patches/, files/) appears in a "sysroot" stage.
 INNER_RECIPEDIR = "/kel/recipe"
@@ -91,6 +99,19 @@ class Stage:
     # Give configure scripts kel's autoconf cache values (CONFIG_SITE_VALUES).
     # Only for stages whose configure runs describe the target system.
     config_site: bool = False
+    kind: str = "build"
+    # Rebuild stages: repository names and the tools root, all under work/<arch>/.
+    input_repo: str = ""
+    output_repo: str = ""
+    tools_root: str = ""
+
+
+def _work_name(path: Path, key: str, value: object, nested: bool = False) -> str:
+    """Check a directory name under work/<arch>/ (a relative path if nested)."""
+    parts = value.split("/") if isinstance(value, str) and nested else [value]
+    if not all(isinstance(p, str) and PROFILE_RE.match(p) for p in parts):
+        raise KelError(f"{path}: bad {key} {value!r} (a directory name under work/<arch>/)")
+    return value
 
 
 def load_stage(layout: Layout, name: str) -> Stage:
@@ -119,12 +140,35 @@ def load_stage(layout: Layout, name: str) -> Stage:
     if not steps:
         raise KelError(f"{path}: no steps")
     verify = data.get("verify", {}).get("script")
-    root = meta.get("root", "host")
-    if root not in STAGE_ROOTS:
-        raise KelError(f"{path}: stage root must be one of {', '.join(STAGE_ROOTS)}")
-    unknown = set(meta) - {"name", "summary", "root", "config_site"}
+    unknown = set(meta) - {"name", "summary", "root", "config_site", "kind", *REBUILD_KEYS}
     if unknown:
         raise KelError(f"{path}: unknown [stage] key(s): {', '.join(sorted(unknown))}")
+    kind = meta.get("kind", "build")
+    if kind not in STAGE_KINDS:
+        raise KelError(f"{path}: stage kind must be one of {', '.join(STAGE_KINDS)}")
+    rebuild: dict[str, str] = {}
+    if kind == "rebuild":
+        # The composed build root is mounted as /, as the sysroot is in "sysroot" stages.
+        if "root" in meta:
+            raise KelError(f"{path}: a rebuild stage builds in a composed root; drop 'root'")
+        missing = [k for k in REBUILD_KEYS if k not in meta]
+        if missing:
+            raise KelError(f"{path}: a rebuild stage needs {', '.join(missing)}")
+        rebuild = {k: _work_name(path, k, meta[k], nested=k == "tools_root")
+                   for k in REBUILD_KEYS}
+        if rebuild["input_repo"] == rebuild["output_repo"]:
+            raise KelError(f"{path}: output_repo must differ from input_repo")
+        other = [s.label for s in steps if s.profile != PACKAGE_PROFILE]
+        if other:
+            raise KelError(f"{path}: a rebuild stage only has package steps, not {other[0]}")
+        root = "sysroot"
+    else:
+        given = [k for k in REBUILD_KEYS if k in meta]
+        if given:
+            raise KelError(f"{path}: {', '.join(given)} only apply to kind = \"rebuild\"")
+        root = meta.get("root", "host")
+        if root not in STAGE_ROOTS:
+            raise KelError(f"{path}: stage root must be one of {', '.join(STAGE_ROOTS)}")
     config_site = meta.get("config_site", False)
     if not isinstance(config_site, bool):
         raise KelError(f"{path}: config_site must be true or false")
@@ -136,20 +180,29 @@ def load_stage(layout: Layout, name: str) -> Stage:
         digest=hashlib.sha256(raw_text).hexdigest(),
         root=root,
         config_site=config_site,
+        kind=kind,
+        **rebuild,
     )
 
 
-def prepare_sysroot(layout: Layout, arch: Arch) -> Path:
-    """Create the merged-/usr skeleton (docs/DESIGN.md section 4.7)."""
-    root = layout.sysroot(arch)
-    for d in ("usr/bin", "usr/lib", "usr/include", "usr/share", "etc", "var", "tools"):
-        (root / d).mkdir(parents=True, exist_ok=True)
+def merged_usr_links(arch: Arch) -> dict[str, str]:
+    """Symlinks of a merged-/usr root (DESIGN.md 4.7); the filesystem package ships them too."""
     links = {"bin": "usr/bin", "sbin": "usr/bin", "lib": "usr/lib",
              "usr/sbin": "bin", "usr/lib64": "lib"}
     if arch.name == "x86_64":
         # The x86-64 ABI loader path is /lib64/ld-linux-x86-64.so.2.
         links["lib64"] = "usr/lib"
-    for name, target in links.items():
+    return links
+
+
+def make_merged_usr_links(root: Path, arch: Arch) -> None:
+    """Create the merged-/usr links in root, or check the ones already there.
+
+    usr/bin and usr/lib are created too, so that no link dangles.
+    """
+    for d in ("usr/bin", "usr/lib"):
+        (root / d).mkdir(parents=True, exist_ok=True)
+    for name, target in merged_usr_links(arch).items():
         link = root / name
         if link.is_symlink():
             if os.readlink(link) != target:
@@ -157,7 +210,16 @@ def prepare_sysroot(layout: Layout, arch: Arch) -> Path:
         elif link.exists():
             raise KelError(f"{link} exists and is not the expected symlink to {target}")
         else:
+            link.parent.mkdir(parents=True, exist_ok=True)
             link.symlink_to(target)
+
+
+def prepare_sysroot(layout: Layout, arch: Arch) -> Path:
+    """Create the merged-/usr skeleton (docs/DESIGN.md section 4.7)."""
+    root = layout.sysroot(arch)
+    for d in ("usr/bin", "usr/lib", "usr/include", "usr/share", "etc", "var", "tools"):
+        (root / d).mkdir(parents=True, exist_ok=True)
+    make_merged_usr_links(root, arch)
     return root
 
 
@@ -365,6 +427,11 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
             raise KelError(f"{step.recipe} has no [bootstrap.{step.profile}] profile")
     if only and only not in {s.label for s in stage.steps}:
         raise KelError(f"stage {stage.name} has no step {only}")
+    if stage.kind == "rebuild":
+        from kel.buildroot import run_rebuild_stage  # buildroot imports this module
+        run_rebuild_stage(layout, arch, stage, jobs=jobs, force=force, keep=keep, only=only,
+                          offline=offline)
+        return
 
     log(f"stage {stage.name} ({arch.name}): {stage.summary}")
     sources = {name: fetch_recipe(layout.sources, layout.upstream_keys, r, offline)
@@ -430,34 +497,49 @@ def run_package_step(layout: Layout, arch: Arch, stage: Stage, recipe: Recipe, w
     apk = layout.host_tools(arch) / "bin" / "apk"
     if not apk.exists():
         raise KelError("no packaging tool: run `kel bootstrap host-tools` first")
-    destdir = workdir / "pkg"
-    destdir.mkdir()
-    env = dict(env0,
-               DESTDIR=f"{INNER_WORKDIR}/pkg",
-               KEL_PKGNAME=recipe.name,
-               KEL_PKGVER=recipe.pkgver,
-               KEL_STRIP="1" if recipe.build.strip else "0",
-               KEL_KEEP_LA="1" if recipe.build.keep_la else "0",
-               CFLAGS=package_cflags(arch),
-               CXXFLAGS=package_cflags(arch))
-    run_script(layout, arch, stage.root, build_script(recipe, run_check), workdir, env, logfile,
-               recipe.path.parent, config_site)
-    parts = split_subpackages(recipe, destdir, workdir)
+    (workdir / "pkg").mkdir()
+    run_script(layout, arch, stage.root, build_script(recipe, run_check), workdir,
+               package_env(env0, recipe, arch), logfile, recipe.path.parent, config_site)
+    key, pub = ensure_dev_key(layout.keys())
+    parts = package_into_repo(apk, recipe, arch, workdir, layout.repository(arch), key, pub,
+                              f"KEL bootstrap ({stage.name})")
+    install_into_root(parts, layout.sysroot(arch))
+
+
+def package_env(env0: dict[str, str], recipe: Recipe, arch: Arch) -> dict[str, str]:
+    """Environment of a [build] script: where to install, what it builds, compiler flags."""
+    assert recipe.build is not None
+    return dict(env0,
+                DESTDIR=f"{INNER_WORKDIR}/pkg",
+                KEL_PKGNAME=recipe.name,
+                KEL_PKGVER=recipe.pkgver,
+                KEL_STRIP="1" if recipe.build.strip else "0",
+                KEL_KEEP_LA="1" if recipe.build.keep_la else "0",
+                CFLAGS=package_cflags(arch),
+                CXXFLAGS=package_cflags(arch))
+
+
+def package_into_repo(apk: Path | ApkTool, recipe: Recipe, arch: Arch, workdir: Path,
+                      repo: Path, key: Path, pub: Path, description: str) -> list[PackagePart]:
+    """Split, check and package a finished build (workdir/pkg) into repo, then re-index.
+
+    Conflicts are checked against the manifests of the packages already in
+    repo (written next to it), so they show up at build time, not install time.
+    """
+    parts = split_subpackages(recipe, workdir / "pkg", workdir)
     problems = resolve_dependencies(parts)
     for part in parts:
         problems += check_policy(part)
-    repo = layout.repository(arch)
     manifests = repo.parent / "manifests"
     problems += check_conflicts(parts, manifests)
     if problems:
         raise KelError("packaging policy violations:\n  " + "\n  ".join(problems))
-    key, pub = ensure_dev_key(layout.keys())
     for part in parts:
         out = make_apk(apk, part, recipe, arch.name, repo, key, SOURCE_DATE_EPOCH)
         log(f"package: {out.name} depends=[{' '.join(part.depends)}]")
     write_manifests(parts, manifests, recipe.pkgver)
-    make_index(apk, repo, key, pub, f"KEL bootstrap ({stage.name})")
-    install_into_root(parts, layout.sysroot(arch))
+    make_index(apk, repo, key, pub, description)
+    return parts
 
 
 def verify_stage(layout: Layout, arch: Arch, stage: Stage, env: dict[str, str]) -> None:

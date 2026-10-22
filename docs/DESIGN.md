@@ -629,6 +629,26 @@ stage 1~2를 크로스로 만든다. stage 3 이후는 (a) 크로스 컴파일�
 - 세션이 끝나면 사라지므로 시간이 많이 드는 결과물(stage 1 툴체인, 패키지 저장소)은
   보관소에 올린다(4.15 참조). 보관소가 없으면 매 세션 처음부터 다시 만든다.
 
+### 5.4 stage 4: 셀프 호스팅 재빌드 (`kind = "rebuild"`)
+
+`bootstrap/stage4.toml`은 stage 3b와 같은 레시피를 같은 순서로 다시 빌드한다. 다른 점은
+빌드 환경과 도구가 모두 KEL 패키지에서 나온다는 것이다(`./kel bootstrap stage4`,
+구현은 `tools/kel/buildroot.py`).
+
+| 주제 | 규칙 | 이유 |
+|---|---|---|
+| 단계 정의 | `[stage] kind = "rebuild"`, `input_repo = "repo"`, `output_repo = "repo-stage4"`, `tools_root = "sysroot"`(모두 `work/<arch>/` 아래 이름). 단계는 `profile = "package"`만 | 입력·출력 저장소와 apk를 가져올 곳을 명시 |
+| apk | `tools_root`의 `/usr/bin/apk`(stage 3b가 만든 KEL의 apk-tools)로 루트 구성, 패키지, 색인을 모두 만든다. 도구 루트는 읽기 전용 `/`로 붙이고, 호스트 디렉터리는 `/run/host/<호스트 경로>`에 보인다 | 호스트 apk를 쓰지 않는다. `/run`은 샌드박스의 tmpfs라 도구 루트에 마운트 지점이 생기지 않는다 |
+| 빌드 루트 구성 | 빈 디렉터리(`work/<arch>/buildroots/<stage>`)에 merged-`/usr` 링크와 `usr/bin`, `usr/lib`를 먼저 만들고 `apk --root … --initdb --no-cache --no-logfile --keys-dir … -X <입력>/Packages.adb add <색인의 모든 패키지>` | apk 3은 DB를 루트 기준 `lib/apk/db`에 만든다. 링크가 없으면 진짜 `/lib`가 생겨 filesystem 패키지의 `lib → usr/lib`를 설치할 수 없다. `--keys-dir`는 절대 경로로 준다(상대 경로는 `--root` 기준) |
+| 패키지 스크립트 | apk가 대상 루트로 chroot해서 실행한다. 이 샌드박스만 user namespace 안에서 유효한 `CAP_SYS_CHROOT`를 받고, 대상 루트에 `/proc`, `/dev`가 붙는다 | bwrap은 capability를 모두 버려서 그대로는 chroot가 실패한다(실측). 빌드 샌드박스는 capability가 없다 |
+| 빌드 | 루트는 단계마다 한 번만 구성하고 모든 빌드에 읽기 전용 `/`로 쓴다(`--remount-ro /`). 쓰기 가능한 곳은 `/kel/build`(작업 디렉터리, `HOME`도 여기), `/tmp`, `/run`. 네트워크 없음. 환경 변수는 stage 3b와 같다 | 빌드가 루트를 바꾸지 못하므로 모든 단계가 같은 루트에서 빌드된다 |
+| 패키징 | 분리, `so:` 의존성, 정책·충돌 검사는 stage 3b와 같다. 결과는 `output_repo`에만 들어가고 어떤 루트에도 설치하지 않는다 | |
+| 재개 | 빌드 루트와 단계마다 스탬프를 남기고, 단계 스탬프에는 빌드 루트(입력 색인)의 식별자가 들어간다. 입력 색인이 바뀌면 루트를 새로 구성하고 출력 저장소를 비운 뒤 모두 다시 빌드한다 | 출력 저장소의 패키지가 모두 같은 빌드 루트에서 나오게 |
+| 검증 | 출력 저장소의 모든 패키지를 빈 루트에 설치한 뒤(설치 가능성), `[verify]`를 그 루트 안에서 실행한다(툴체인 동작, 호스트 흔적) | 재빌드한 패키지만으로 된 시스템이 스스로 동작하는지 확인 |
+
+레시피에 선언된 빌드 의존성만 든 루트(4.3의 "빌드마다 새 루트")는 Phase 2에서 같은 함수에
+패키지 목록을 주는 방식으로 만든다.
+
 ## 6. 저장소 구조 (제안)
 
 ```

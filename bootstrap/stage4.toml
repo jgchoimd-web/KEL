@@ -1,0 +1,357 @@
+# Stage 4: self-hosting rebuild (docs/DESIGN.md sections 5 and 5.4).
+# One build root is composed from the stage 3 repository by KEL's own apk
+# (the one in the sysroot) and mounted read-only as / for every build, so
+# only KEL packages take part: nothing from the host or the bootstrap tools.
+# The packages go to a new repository, created and signed with the same apk;
+# nothing is installed anywhere.
+#
+# The steps are the package steps of stage3b.toml in the same order
+# (tools/tests/test_buildroot.py checks this).
+
+[stage]
+name = "stage4"
+summary = "self-hosting rebuild: every package again, in a root made only of stage 3 packages"
+kind = "rebuild"
+input_repo = "repo"
+output_repo = "repo-stage4"
+tools_root = "sysroot"
+config_site = true
+
+[[step]]
+recipe = "filesystem"
+profile = "package"
+
+[[step]]
+recipe = "linux-headers"
+profile = "package"
+
+[[step]]
+recipe = "iana-etc"
+profile = "package"
+
+[[step]]
+recipe = "glibc"
+profile = "package"
+
+[[step]]
+recipe = "tzdata"
+profile = "package"
+
+[[step]]
+recipe = "zlib"
+profile = "package"
+
+[[step]]
+recipe = "bzip2"
+profile = "package"
+
+[[step]]
+recipe = "xz"
+profile = "package"
+
+[[step]]
+recipe = "lz4"
+profile = "package"
+
+[[step]]
+recipe = "zstd"
+profile = "package"
+
+[[step]]
+recipe = "file"
+profile = "package"
+
+[[step]]
+recipe = "readline"
+profile = "package"
+
+[[step]]
+recipe = "pcre2"
+profile = "package"
+
+[[step]]
+recipe = "m4"
+profile = "package"
+
+[[step]]
+recipe = "bc"
+profile = "package"
+
+[[step]]
+recipe = "flex"
+profile = "package"
+
+[[step]]
+recipe = "tcl"
+profile = "package"
+
+[[step]]
+recipe = "expect"
+profile = "package"
+
+[[step]]
+recipe = "dejagnu"
+profile = "package"
+
+[[step]]
+recipe = "ninja"
+profile = "package"
+
+[[step]]
+recipe = "pkgconf"
+profile = "package"
+
+[[step]]
+recipe = "binutils"
+profile = "package"
+
+[[step]]
+recipe = "gmp"
+profile = "package"
+
+[[step]]
+recipe = "mpfr"
+profile = "package"
+
+[[step]]
+recipe = "mpc"
+profile = "package"
+
+[[step]]
+recipe = "attr"
+profile = "package"
+
+[[step]]
+recipe = "acl"
+profile = "package"
+
+[[step]]
+recipe = "libcap"
+profile = "package"
+
+[[step]]
+recipe = "libxcrypt"
+profile = "package"
+
+[[step]]
+recipe = "shadow"
+profile = "package"
+
+[[step]]
+recipe = "gawk"
+profile = "package"
+
+[[step]]
+recipe = "gcc"
+profile = "package"
+
+[[step]]
+recipe = "ncurses"
+profile = "package"
+
+[[step]]
+recipe = "sed"
+profile = "package"
+
+[[step]]
+recipe = "psmisc"
+profile = "package"
+
+[[step]]
+recipe = "gettext"
+profile = "package"
+
+[[step]]
+recipe = "bison"
+profile = "package"
+
+[[step]]
+recipe = "grep"
+profile = "package"
+
+[[step]]
+recipe = "bash"
+profile = "package"
+
+[[step]]
+recipe = "libtool"
+profile = "package"
+
+[[step]]
+recipe = "gdbm"
+profile = "package"
+
+[[step]]
+recipe = "gperf"
+profile = "package"
+
+[[step]]
+recipe = "expat"
+profile = "package"
+
+[[step]]
+recipe = "less"
+profile = "package"
+
+[[step]]
+recipe = "perl"
+profile = "package"
+
+[[step]]
+recipe = "autoconf"
+profile = "package"
+
+[[step]]
+recipe = "automake"
+profile = "package"
+
+[[step]]
+recipe = "openssl"
+profile = "package"
+
+[[step]]
+recipe = "elfutils"
+profile = "package"
+
+[[step]]
+recipe = "libffi"
+profile = "package"
+
+[[step]]
+recipe = "sqlite"
+profile = "package"
+
+[[step]]
+recipe = "mpdecimal"
+profile = "package"
+
+[[step]]
+recipe = "python"
+profile = "package"
+
+[[step]]
+recipe = "flit-core"
+profile = "package"
+
+[[step]]
+recipe = "packaging"
+profile = "package"
+
+[[step]]
+recipe = "wheel"
+profile = "package"
+
+[[step]]
+recipe = "setuptools"
+profile = "package"
+
+[[step]]
+recipe = "meson"
+profile = "package"
+
+[[step]]
+recipe = "scdoc"
+profile = "package"
+
+[[step]]
+recipe = "kmod"
+profile = "package"
+
+[[step]]
+recipe = "coreutils"
+profile = "package"
+
+[[step]]
+recipe = "diffutils"
+profile = "package"
+
+[[step]]
+recipe = "findutils"
+profile = "package"
+
+[[step]]
+recipe = "gzip"
+profile = "package"
+
+[[step]]
+recipe = "iproute2"
+profile = "package"
+
+[[step]]
+recipe = "make"
+profile = "package"
+
+[[step]]
+recipe = "patch"
+profile = "package"
+
+[[step]]
+recipe = "tar"
+profile = "package"
+
+[[step]]
+recipe = "texinfo"
+profile = "package"
+
+[[step]]
+recipe = "markupsafe"
+profile = "package"
+
+[[step]]
+recipe = "jinja2"
+profile = "package"
+
+[[step]]
+recipe = "systemd"
+profile = "package"
+
+[[step]]
+recipe = "procps-ng"
+profile = "package"
+
+[[step]]
+recipe = "util-linux"
+profile = "package"
+
+[[step]]
+recipe = "e2fsprogs"
+profile = "package"
+
+[[step]]
+recipe = "apk-tools"
+profile = "package"
+
+[[step]]
+recipe = "bubblewrap"
+profile = "package"
+
+# kel first installs every package of repo-stage4 into an empty root with
+# KEL's apk; this script then runs inside that root (read-only, only
+# $KEL_WORKDIR writable): the rebuilt system works on its own.
+[verify]
+script = '''
+cd "$KEL_WORKDIR"
+. /etc/os-release && echo "rebuilt root: $PRETTY_NAME (ID=$ID)"
+test "$ID" = kel
+case "$KEL_ARCH" in
+  x86_64)  interp=/lib64/ld-linux-x86-64.so.2 ;;
+  aarch64) interp=/lib/ld-linux-aarch64.so.1 ;;
+esac
+# The rebuilt toolchain builds working programs (LFS 13.1 chapter 8.32 checks).
+echo 'int main(){}' | cc -x c - -v -Wl,--verbose > dummy.log 2>&1
+readelf -l a.out | grep -q "Requesting program interpreter: $interp"
+grep -q 'attempt to open /usr/lib/libc.so.6 succeeded' dummy.log
+printf '#include <iostream>\nint main(){std::cout << "c++ ok" << std::endl;}\n' > t.cc
+g++ t.cc -o t && ./t
+# Only KEL's compiler may appear in the binaries (no host toolchain traces).
+for f in /usr/bin/bash /usr/bin/gcc /usr/bin/python3 /usr/bin/apk /usr/lib/libc.so.6 /usr/lib/libstdc++.so.6; do
+  c=$(readelf -p .comment "$f" | grep -o 'GCC: ([^)]*) [0-9.]*' | sort -u | tr '\n' ' ')
+  echo "$f: $c"
+  case "$c" in *Ubuntu*|*Debian*) echo "host compiler trace in $f"; exit 1;; esac
+done
+for t in apk bwrap make meson ninja perl python3 openssl; do
+  command -v "$t" > /dev/null || { echo "missing $t"; exit 1; }
+done
+python3 -c 'import ssl, sqlite3, decimal, zlib, bz2, lzma, ctypes; print("python modules ok")'
+echo "STAGE4 VERIFY OK"
+'''
