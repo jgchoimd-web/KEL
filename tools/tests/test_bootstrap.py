@@ -59,6 +59,20 @@ class UnpackTests(unittest.TestCase):
             self.assertEqual((src / "dep" / "README").read_text(), "dep\n")
             self.assertEqual(sorted(p.name for p in work.iterdir()), ["src"])
 
+    def test_plain_file_sources_are_copied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            make_tarball(tmp / "main.tar.gz", "main-1.0", {"configure": "#!/bin/sh\n"})
+            (tmp / "fix-001").write_text("--- a\n+++ b\n")
+            recipe = Recipe(name="main", version="1.0", revision=0, summary="s", license="MIT",
+                            homepage="https://example.org/", sources=(
+                                Source("https://e/main.tar.gz", "0" * 64, "main.tar.gz"),
+                                Source("https://e/fix-001", "1" * 64, "fix-001")))
+            work = tmp / "work"
+            work.mkdir()
+            unpack_sources(recipe, [tmp / "main.tar.gz", tmp / "fix-001"], work)
+            self.assertEqual((work / "sources" / "fix-001").read_text(), "--- a\n+++ b\n")
+
 
 class NativeRecipeTests(unittest.TestCase):
     def test_files_dir_becomes_source_tree(self):

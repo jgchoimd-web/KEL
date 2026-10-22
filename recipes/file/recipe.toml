@@ -1,0 +1,31 @@
+[package]
+name = "file"
+version = "5.48"
+revision = 0
+summary = "File type identification utility and libmagic"
+license = "BSD-2-Clause-Darwin"
+homepage = "https://www.darwinsys.com/file/"
+
+[[source]]
+url = "https://astron.com/pub/file/file-5.48.tar.gz"
+sha256 = "ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283"
+signature = "https://astron.com/pub/file/file-5.48.tar.gz.asc"
+signing_keys = ["BE04995BA8F90ED0C0C176C471112AB16CB33B3A"]  # Christos Zoulas
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 12.4 chapter 6.
+[bootstrap.stage2]
+script = '''
+mkdir build
+pushd build
+  ../configure --disable-bzlib \
+               --disable-libseccomp \
+               --disable-xzlib \
+               --disable-zlib
+  make
+popd
+./configure --prefix=/usr --host="$KEL_TARGET" --build="$(./config.guess)"
+make FILE_COMPILE="$(pwd)/build/src/file"
+make DESTDIR="$KEL_SYSROOT" install
+rm -v "$KEL_SYSROOT/usr/lib/libmagic.la"
+'''

@@ -1,0 +1,25 @@
+[package]
+name = "diffutils"
+version = "3.12"
+revision = 0
+summary = "GNU file comparison utilities"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/diffutils/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/diffutils/diffutils-3.12.tar.xz"
+sha256 = "7c8b7f9fc8609141fdea9cece85249d308624391ff61dedaf528fcb337727dfd"
+signature = "https://ftp.gnu.org/gnu/diffutils/diffutils-3.12.tar.xz.sig"
+signing_keys = ["155D3FC500C834486D1EEA677FD9FCCB000BEEEE"]  # Jim Meyering
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 12.4 chapter 6.
+[bootstrap.stage2]
+script = '''
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            gl_cv_func_strcasecmp_works=y \
+            --build="$(./build-aux/config.guess)"
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''

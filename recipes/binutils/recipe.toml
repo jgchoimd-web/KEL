@@ -30,3 +30,27 @@ cd build
 make
 make install
 '''
+
+# Stage 2: binutils for the target, cross compiled into the sysroot.
+# Based on LFS 12.4 chapter 6.17. The line-numbered sed targets ltmain.sh,
+# which is identical in binutils 2.45 (LFS) and 2.47 (checked 2026-10-22).
+[bootstrap.pass2]
+script = '''
+sed '6031s/$add_dir//' -i ltmain.sh
+mkdir -v build
+cd build
+../configure \
+    --prefix=/usr \
+    --build="$(../config.guess)" \
+    --host="$KEL_TARGET" \
+    --disable-nls \
+    --enable-shared \
+    --enable-gprofng=no \
+    --disable-werror \
+    --enable-64-bit-bfd \
+    --enable-new-dtags \
+    --enable-default-hash-style=gnu
+make
+make DESTDIR="$KEL_SYSROOT" install
+rm -v "$KEL_SYSROOT"/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
+'''

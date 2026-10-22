@@ -167,6 +167,10 @@ def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
     shutil.rmtree(main.parent, ignore_errors=True)
     for source, path in zip(recipe.sources[1:], paths[1:]):
         if source.dest is None:
+            # Not unpacked (patches and other files): available in $KEL_SOURCEDIR.
+            extra = workdir / "sources"
+            extra.mkdir(exist_ok=True)
+            shutil.copy2(path, extra / source.filename)
             continue
         top = _extract(path, workdir)
         target = srcdir / source.dest
@@ -179,8 +183,19 @@ def unpack_sources(recipe: Recipe, paths: list[Path], workdir: Path) -> Path:
 
 
 def step_key(stage: Stage, step: Step, recipe: Recipe, arch: Arch) -> str:
+    """Identity of a step's inputs; a finished step is redone when it changes.
+
+    A bootstrap profile depends on the recipe's version, sources and that
+    profile's script only, so adding another profile to the recipe does not
+    redo finished steps. A package step depends on the whole recipe directory.
+    """
+    if step.profile == PACKAGE_PROFILE:
+        inputs = recipe.digest
+    else:
+        inputs = repr((recipe.pkgver, [(s.url, s.sha256, s.dest) for s in recipe.sources],
+                       recipe.bootstrap[step.profile].script))
     h = hashlib.sha256()
-    for part in (__version__, stage.name, step.label, arch.name, recipe.digest):
+    for part in (__version__, stage.name, step.label, arch.name, inputs):
         h.update(part.encode() + b"\0")
     return h.hexdigest()
 
@@ -240,12 +255,16 @@ def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path
         env = dict(env, HOME=str(home), KEL_WORKDIR=str(workdir))
         if has_src:
             env["KEL_SRCDIR"] = str(workdir / "src")
+        if (workdir / "sources").is_dir():
+            env["KEL_SOURCEDIR"] = str(workdir / "sources")
         cmd = bwrap_command(argv, chdir=workdir / "src" if has_src else workdir, env=env,
                             rw_binds=[layout.arch_root(arch)], sh_is_bash=True)
     else:
         env = dict(env, KEL_WORKDIR=INNER_WORKDIR)
         if has_src:
             env["KEL_SRCDIR"] = f"{INNER_WORKDIR}/src"
+        if (workdir / "sources").is_dir():
+            env["KEL_SOURCEDIR"] = f"{INNER_WORKDIR}/sources"
         cmd = bwrap_root_command(argv, root=layout.sysroot(arch),
                                  chdir=env.get("KEL_SRCDIR", INNER_WORKDIR), env=env,
                                  binds=[(workdir, INNER_WORKDIR)], ro_binds=list(ro_binds))

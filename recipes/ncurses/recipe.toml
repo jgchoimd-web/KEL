@@ -1,0 +1,43 @@
+[package]
+name = "ncurses"
+version = "6.6"
+revision = 0
+summary = "Terminal handling library"
+license = "X11-distribute-modifications-variant"
+homepage = "https://invisible-island.net/ncurses/"
+
+[[source]]
+url = "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz"
+sha256 = "355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11"
+signature = "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz.asc"
+signing_keys = ["19882D92DDA4C400C22C0D56CC2AF4472167BE03"]  # Thomas E. Dickey
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 12.4 chapter 6.
+# KEL uses the 6.6 release; LFS 12.4 used a weekly snapshot.
+[bootstrap.stage2]
+script = '''
+mkdir build
+pushd build
+  ../configure --prefix="$KEL_TOOLS" AWK=gawk
+  make -C include
+  make -C progs tic
+  install progs/tic "$KEL_TOOLS/bin"
+popd
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(./config.guess)" \
+            --mandir=/usr/share/man \
+            --with-manpage-format=normal \
+            --with-shared \
+            --without-normal \
+            --with-cxx-shared \
+            --without-debug \
+            --without-ada \
+            --disable-stripping \
+            AWK=gawk
+make
+make DESTDIR="$KEL_SYSROOT" install
+ln -sv libncursesw.so "$KEL_SYSROOT/usr/lib/libncurses.so"
+sed -e 's/^#if.*XOPEN.*$/#if 1/' -i "$KEL_SYSROOT/usr/include/curses.h"
+'''

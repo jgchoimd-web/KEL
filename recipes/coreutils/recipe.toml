@@ -1,0 +1,27 @@
+[package]
+name = "coreutils"
+version = "9.12"
+revision = 0
+summary = "GNU core utilities"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/coreutils/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz"
+sha256 = "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+signature = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz.sig"
+signing_keys = ["6C37DC12121A5006BC1DB804DF6FD971306037D9"]  # Pádraig Brady
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 12.4 chapter 6.
+# LFS moves chroot to /usr/sbin; KEL merges sbin into bin, so it stays.
+[bootstrap.stage2]
+script = '''
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(build-aux/config.guess)" \
+            --enable-install-program=hostname \
+            --enable-no-install-program=kill,uptime
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''

@@ -1,0 +1,24 @@
+[package]
+name = "tar"
+version = "1.35"
+revision = 0
+summary = "GNU tar"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/tar/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz"
+sha256 = "4d62ff37342ec7aed748535323930c7cf94acf71c3591882b26a7ea50f3edc16"
+signature = "https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz.sig"
+signing_keys = ["325F650C4C2B6AD58807327A3602B07F55D0C732"]  # Sergey Poznyakoff
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 12.4 chapter 6.
+[bootstrap.stage2]
+script = '''
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(build-aux/config.guess)"
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''

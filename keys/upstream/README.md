@@ -13,6 +13,18 @@
 | `AD17A21EF8AED8F1CC02DBD9F7D5C9BF765C61E3` | Andreas Enge (MPC) | gcc (in-tree MPC) | GNU keyring |
 | `35B17DF5752577CA0C541CEB94BFDF4484AD142F` | Andreas K. Huettel (glibc 릴리스) | glibc | GNU keyring |
 | `647F28654894E3BD457199BE38DBBDC86092693E` | Greg Kroah-Hartman (stable 커널) | linux | kernel.org pgpkeys 저장소 |
+| `71C2CC22B1C4602927D2F3AAA7A16B4A2527436A` | Eric Blake | m4 | GNU keyring |
+| `19882D92DDA4C400C22C0D56CC2AF4472167BE03` | Thomas E. Dickey | ncurses | <https://invisible-island.net/public/dickey@invisible-island.net-rsa3072.asc> (GNU keyring 사본은 만료) |
+| `7C0135FB088AAF6C66C650B9BB5869F064EA74AB` | Chet Ramey | bash (tarball과 공식 패치) | GNU keyring |
+| `6C37DC12121A5006BC1DB804DF6FD971306037D9` | Pádraig Brady | coreutils | GNU keyring |
+| `155D3FC500C834486D1EEA677FD9FCCB000BEEEE` | Jim Meyering | diffutils, grep, gzip, sed | GNU keyring |
+| `BE04995BA8F90ED0C0C176C471112AB16CB33B3A` | Christos Zoulas | file | keys.openpgp.org와 keyserver.ubuntu.com (같은 키, 만료 표시) |
+| `0CF4E8D871593224842832B888DD9E08C5DDACB9` | James Youngman | findutils | GNU keyring |
+| `D1967C63788713177D861ED7DF597815937EC0D2` | Arnold Robbins | gawk | GNU keyring |
+| `6D4EEB02AD834703510B117680CB727A20C79BB2` | Paul D. Smith | make | GNU keyring, Savannah (서명 부키 2026-10-20 만료) |
+| `259B3792B3D6D319212CC4DCD5BF9FEB0313653A` | Andreas Gruenbacher | patch | Savannah user 15000 (GNU keyring 사본은 만료) |
+| `325F650C4C2B6AD58807327A3602B07F55D0C732` | Sergey Poznyakoff | tar | GNU keyring |
+| `3690C240CE51B4670D30AD1C38EE757D69184620` | Lasse Collin | xz | <https://tukaani.org/misc/lasse_collin_pubkey.txt> |
 
 - GNU keyring: <https://ftp.gnu.org/gnu/gnu-keyring.gpg> (2026-10-22에 받음)
 - kernel.org pgpkeys: <https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/38DBBDC86092693E.asc>
