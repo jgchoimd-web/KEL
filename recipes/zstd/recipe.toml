@@ -1,0 +1,23 @@
+[package]
+name = "zstd"
+version = "1.5.7"
+revision = 0
+summary = "Zstandard real-time compression (libzstd and the zstd tools)"
+license = "BSD-3-Clause OR GPL-2.0-only"
+homepage = "https://facebook.github.io/zstd/"
+
+[[source]]
+url = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
+sha256 = "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3"
+signature = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz.sig"
+signing_keys = ["4EF4AC63455FC9F4545D9B7DEF8FE99528B52FFD"]  # Zstandard Release Signing Key
+
+# Package. Based on LFS 13.1 chapter 8.10. As in LFS, the zstd program uses
+# zlib, liblzma and liblz4 when they are present (its Makefile detects them).
+[build]
+style = "make"
+depends = ["lz4", "zlib"]
+make_args = ["prefix=/usr"]
+post_install = '''
+rm -v "$DESTDIR"/usr/lib/libzstd.a
+'''

@@ -1,0 +1,39 @@
+[package]
+name = "tzdata"
+version = "2026c"
+revision = 0
+summary = "Time zone database (compiled zoneinfo files)"
+license = "LicenseRef-Public-Domain"
+homepage = "https://www.iana.org/time-zones"
+
+# The tarball has no top-level directory: it is unpacked straight into the
+# source tree.
+[[source]]
+url = "https://www.iana.org/time-zones/repository/releases/tzdata2026c.tar.gz"
+sha256 = "e4a178a4477f3d0ea77cc31828ff72aa38feff8d61aa13e7e99e142e9d902be4"
+signature = "https://www.iana.org/time-zones/repository/releases/tzdata2026c.tar.gz.asc"
+signing_keys = ["7E3792A9D8ACF7D633BC1588ED97E90E62AA7E34"]  # Paul Eggert
+topdir = false
+
+# Package. Based on LFS 13.1 chapter 8.5.2.2 ("Adding Time Zone Data"),
+# which installs the zones as part of glibc; KEL ships them as their own
+# package so they can be updated without rebuilding glibc. zic comes from
+# glibc. "zic -p" warns that it is obsolete but still writes posixrules,
+# which glibc uses for TZ strings without rules. /etc/localtime is an
+# install-time setting and is not shipped. No test suite.
+[build]
+style = "custom"
+strip = false
+depends = ["glibc"]
+install = '''
+ZONEINFO="$DESTDIR"/usr/share/zoneinfo
+mkdir -pv "$ZONEINFO"/{posix,right}
+for tz in etcetera southamerica northamerica europe africa antarctica \
+          asia australasia backward; do
+    zic -L /dev/null   -d "$ZONEINFO"       ${tz}
+    zic -L /dev/null   -d "$ZONEINFO"/posix ${tz}
+    zic -L leapseconds -d "$ZONEINFO"/right ${tz}
+done
+cp -v zone.tab zone1970.tab iso3166.tab "$ZONEINFO"
+zic -d "$ZONEINFO" -p America/New_York
+'''

@@ -1,0 +1,31 @@
+[package]
+name = "markupsafe"
+version = "3.0.4"
+revision = 0
+summary = "Python string type that escapes text for HTML and XML"
+license = "BSD-3-Clause"
+homepage = "https://markupsafe.palletsprojects.com/"
+depends = ["python"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/markupsafe/3.0.4/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/38/9b/e422a865e1d5d57d0e509b4e0bf1c1a70a7f6382c29a5aa428df994c8bc8/markupsafe-3.0.4.tar.gz"
+sha256 = "2e9ad7dd851bf45fab9f75cbff4cb493fee9979e8d8c7c9c3ee119022518edd6"
+
+# Package. Based on LFS 13.1 chapter 8.75 (written for 3.0.3): a wheel
+# built without build isolation (with the C speedups module), installed
+# into DESTDIR instead of the live system. No tests: LFS runs none (they
+# need pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python", "setuptools"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" markupsafe
+'''

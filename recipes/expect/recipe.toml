@@ -1,0 +1,49 @@
+[package]
+name = "expect"
+version = "5.45.4"
+revision = 0
+summary = "Tool for automating interactive programs (DejaGnu runs on it)"
+license = "LicenseRef-Public-Domain"
+homepage = "https://core.tcl-lang.org/expect/"
+
+# Expect publishes no signatures. The sha256 equals the one in
+# expect5.45.4.tar.gz.SHA256, which upstream uploaded next to the tarball on
+# SourceForge (that file's MD5 is in the SourceForge release feed), and the
+# tarball's MD5 matches LFS 13.1 (checked 2026-10-22).
+[[source]]
+url = "https://downloads.sourceforge.net/project/expect/Expect/5.45.4/expect5.45.4.tar.gz"
+sha256 = "49a7da83b0bdd9f46d04a04deec19c7767bb9a323e40c4781f89caf760b92c34"
+
+# Package. Based on LFS 13.1 chapter 8.18. kel applies
+# patches/expect-5.45.4-gcc15-1.patch, LFS 13.1's patch for GCC 15 and later
+# (MD5 0ca4d6bb8d572fbcdb13cb36cd34833e as listed by LFS).
+# Expect needs working PTYs: configure probes /dev/ptmx and picks the PTY
+# type from it, and the test suites that use Expect open PTYs. The build
+# sandbox mounts a fresh /dev with its own devpts instance (bubblewrap --dev:
+# /dev/ptmx -> pts/ptmx, ptmxmode=666), so prepare runs LFS's PTY check and
+# stops the build if it fails.
+# The Tcl private headers come from the tcl package
+# (make install-private-headers). The library is installed in
+# /usr/lib/expect5.45.4/; without an rpath the expect program finds it
+# through the symlink in /usr/lib that LFS adds.
+[build]
+style = "custom"
+depends = ["tcl", "python"]
+prepare = '''
+python3 -c 'from pty import spawn; spawn(["echo", "ok"])' | grep -q ok
+'''
+configure = '''
+./configure --prefix=/usr --with-tcl=/usr/lib --enable-shared --disable-rpath \
+    --mandir=/usr/share/man --with-tclinclude=/usr/include
+'''
+compile = 'make'
+# Like Tcl's, the test target reports failures but does not fail on them.
+test = 'make test'
+install = '''
+make DESTDIR="$DESTDIR" install
+v=${KEL_PKGVER%-r*}
+ln -sv "expect$v/libexpect$v.so" "$DESTDIR/usr/lib/libexpect$v.so"
+'''
+post_install = '''
+install -Dm644 license.terms "$DESTDIR"/usr/share/licenses/expect/license.terms
+'''

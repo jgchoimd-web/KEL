@@ -25,3 +25,8 @@ make
 make DESTDIR="$KEL_SYSROOT" install
 rm -v "$KEL_SYSROOT/usr/lib/liblzma.la"
 '''
+
+# Package. Based on LFS 13.1 chapter 8.8 (KEL: unversioned docdir).
+[build]
+style = "gnu-configure"
+configure_args = ["--disable-static"]

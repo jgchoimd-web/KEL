@@ -22,3 +22,8 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.14.
+[build]
+style = "gnu-configure"
+depends = ["texinfo"]

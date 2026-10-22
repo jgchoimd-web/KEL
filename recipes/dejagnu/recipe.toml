@@ -1,0 +1,24 @@
+[package]
+name = "dejagnu"
+version = "1.6.3"
+revision = 0
+summary = "Framework for testing other programs (runs the binutils and GCC test suites)"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/dejagnu/"
+# runtest is a shell script that runs the expect interpreter.
+depends = ["expect"]
+
+# The signing key expired on 2022-01-10; the signature was made on
+# 2021-06-17, before that (kel accepts an expired key copy).
+[[source]]
+url = "https://ftp.gnu.org/gnu/dejagnu/dejagnu-1.6.3.tar.gz"
+sha256 = "87daefacd7958b4a69f88c6856dbd1634261963c414079d0c371f589cd66a2e3"
+signature = "https://ftp.gnu.org/gnu/dejagnu/dejagnu-1.6.3.tar.gz.sig"
+signing_keys = ["D231B45ECB0B7BD8F6E7A682CE9D6843AABACC90"]  # Jacob Bachmeyer (2021 DejaGnu release key)
+
+# Package. Based on LFS 13.1 chapter 8.19 (built out of tree, as upstream
+# recommends). The optional HTML and plain-text manuals that LFS generates
+# with makeinfo are not built; the info manual from the tarball is installed.
+[build]
+style = "gnu-configure"
+depends = ["expect"]

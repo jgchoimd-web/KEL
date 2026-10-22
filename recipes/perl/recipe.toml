@@ -69,8 +69,24 @@ compile = '''
 export BUILD_ZLIB=False BUILD_BZIP2=0
 make
 '''
+# Two test files need more ids than the build sandbox maps (only uid/gid 0):
+# op/groups.t (setgroups with the daemon group) and File-Path's Path_root.t
+# (chown to 65534). They are allowed to fail; any other failure fails the
+# build.
 test = '''
-TEST_JOBS="$KEL_JOBS" make test_harness
+st=0
+TEST_JOBS="$KEL_JOBS" make test_harness 2>&1 | tee test_harness.log || st=$?
+if [ "$st" -ne 0 ]; then
+    failed=$(sed -n '/^Test Summary Report/,/^Files=/s/^\([^ ][^ ]*\.t\) .*(Wstat.*/\1/p' \
+             test_harness.log)
+    unexpected=$(printf '%s\n' "$failed" |
+                 grep -vx -e 'op/groups.t' -e '../cpan/File-Path/t/Path_root.t' || true)
+    if [ -z "$failed" ] || [ -n "$unexpected" ]; then
+        echo "perl: unexpected test failures: ${unexpected:-see the harness output}"
+        exit 1
+    fi
+    echo "perl: only the known sandbox failures: $(echo $failed)"
+fi
 '''
 post_install = '''
 install -vDm644 -t "$DESTDIR/usr/share/licenses/perl" Copying Artistic

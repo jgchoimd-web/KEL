@@ -1,0 +1,30 @@
+[package]
+name = "flit-core"
+version = "4.1.0"
+revision = 0
+summary = "PEP 517 build backend of Flit, for simple Python packages"
+license = "BSD-3-Clause AND MIT"
+homepage = "https://flit.pypa.io/"
+depends = ["python"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/flit-core/4.1.0/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/e7/91/add211b38c357bf1b94900b4f79c34661a92be65c0243d2b0a3393c5092d/flit_core-4.1.0.tar.gz"
+sha256 = "62e12b63ead8335b37f59fabb977c7167fe476dafb5e41785dfa8c9aff843bc6"
+
+# Package. Based on LFS 13.1 chapter 8.55 (written for 4.0.2): a wheel built
+# without build isolation (flit_core builds itself), installed into DESTDIR
+# instead of the live system. No tests: LFS runs none (they need pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" flit_core
+'''

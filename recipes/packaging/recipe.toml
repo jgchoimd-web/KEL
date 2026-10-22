@@ -1,0 +1,30 @@
+[package]
+name = "packaging"
+version = "26.3"
+revision = 0
+summary = "Core utilities for Python packages (versions, specifiers, markers, tags)"
+license = "Apache-2.0 OR BSD-2-Clause"
+homepage = "https://packaging.pypa.io/"
+depends = ["python"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/packaging/26.3/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz"
+sha256 = "94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79"
+
+# Package. Based on LFS 13.1 chapter 8.56: a wheel built without build
+# isolation, installed into DESTDIR instead of the live system. No tests:
+# LFS runs none (they need pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python", "flit-core"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" packaging
+'''

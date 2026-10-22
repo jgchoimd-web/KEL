@@ -49,3 +49,151 @@ EOF
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.5 (8.5.1 and the 8.5.2 configuration
+# files; the time zone data of 8.5.2.2 is the separate tzdata recipe).
+# Differences from LFS:
+# - patches/ (above) are applied by kel before the prepare phase.
+# - Merged /usr with bin and sbin merged: build/configparms puts the
+#   libraries and the dynamic loader in /usr/lib and every program in
+#   /usr/bin, as in [bootstrap.cross]. glibc's configure accepts the style's
+#   default directory options: --sbindir and --mandir are not used by glibc
+#   (configparms decides sbindir), and --sysconfdir=/etc and
+#   --localstatedir=/var are glibc's own defaults for --prefix=/usr.
+# - make check runs (critical in LFS) but its failures do not stop the build:
+#   LFS documents expected failures and the sandbox adds some, so the FAIL
+#   lines are printed for review. Only a test run that did not complete is
+#   fatal.
+# - DESTDIR install. LFS's test-installation sed is kept although that check
+#   never runs for a DESTDIR install. /etc/ld.so.conf is written before
+#   make install (LFS touches it to silence the ldconfig run at the end of
+#   make install); /etc/ld.so.cache, which that run may write, is removed
+#   (it is generated on the installed system).
+# - /etc/ld.so.conf has /usr/local/lib and the ld.so.conf.d include, but not
+#   LFS's /opt/lib (KEL: software in /opt/<package> adds its own
+#   /etc/ld.so.conf.d file).
+# - LFS's ldd sed (RTLDLIST without /usr) is not needed: with rtlddir=/usr/lib
+#   the generated ldd tries /usr/lib64/ld-linux-x86-64.so.2 first, and
+#   /usr/lib64 is a symlink to lib in KEL's filesystem package.
+# - The locales (LFS's minimum set) go into
+#   $DESTDIR/usr/lib/locale/locale-archive (localedef --prefix). They are
+#   compiled by the new localedef running on the new libc (testrun.sh runs a
+#   program against the build tree) from the locale sources and charmaps
+#   just installed into $DESTDIR/usr/share/i18n (I18NPATH).
+# - No /etc/localtime (an install-time setting).
+[build]
+style = "gnu-configure"
+depends = ["bison", "gettext", "linux-headers", "perl", "python", "texinfo"]
+configure_args = [
+    "--disable-werror",
+    "--disable-nscd",
+    "libc_cv_slibdir=/usr/lib",
+    "--enable-stack-protector=strong",
+    "--enable-kernel=5.10",
+]
+prepare = '''
+mkdir -p build
+cat > build/configparms <<'EOF'
+slibdir=/usr/lib
+rtlddir=/usr/lib
+sbindir=/usr/bin
+rootsbindir=/usr/bin
+EOF
+sed '/test-installation/s@$(PERL)@echo not running@' -i Makefile
+'''
+test = '''
+cd build
+# Expected failures named by LFS 13.1: io/tst-lchmod, timeouts such as
+# nss/tst-nss-files-hosts-multi and nptl/tst-thread-affinity*, CPU or
+# kernel dependent tests (elf/tst-cpu-features-cpuinfo,
+# stdlib/tst-arc4random-thread). The sandbox (one mapped uid, no network,
+# read-only /sys) adds more.
+make -k check || true
+# tests.sum is written at the end of the run; without it the suite did not
+# complete (for example a test program failed to build).
+if ! grep -q '^PASS:' tests.sum; then
+    echo "glibc: make check did not complete" >&2
+    exit 1
+fi
+echo "==== glibc test results ===="
+sed -e '/:.*/!d' -e 's/:.*//' tests.sum | sort | uniq -c
+grep -E '^(FAIL|ERROR|XPASS):' tests.sum || true
+echo "==== glibc tests that timed out ===="
+find . -name '*.out' -exec grep -l 'Timed out' {} + || true
+'''
+install = '''
+install -d "$DESTDIR"/etc/ld.so.conf.d
+cat > "$DESTDIR"/etc/ld.so.conf <<'EOF'
+# Begin /etc/ld.so.conf
+/usr/local/lib
+
+# Add an include directory
+include /etc/ld.so.conf.d/*.conf
+
+EOF
+cd build
+make DESTDIR="$DESTDIR" install
+rm -f "$DESTDIR"/etc/ld.so.cache "$DESTDIR"/var/cache/ldconfig/aux-cache
+grep '^RTLDLIST=' "$DESTDIR"/usr/bin/ldd
+'''
+post_install = '''
+cat > "$DESTDIR"/etc/nsswitch.conf <<'EOF'
+# Begin /etc/nsswitch.conf
+
+passwd: files systemd
+group: files systemd
+shadow: files systemd
+
+hosts: mymachines resolve [!UNAVAIL=return] files myhostname dns
+networks: files
+
+protocols: files
+services: files
+ethers: files
+rpc: files
+
+# End /etc/nsswitch.conf
+EOF
+
+cd build
+mkdir -p "$DESTDIR"/usr/lib/locale
+export I18NPATH="$DESTDIR"/usr/share/i18n
+new_localedef() {
+    "$PWD"/testrun.sh "$PWD"/locale/localedef --prefix="$DESTDIR" "$@"
+}
+new_localedef -i C -f UTF-8 C.UTF-8
+new_localedef -i cs_CZ -f UTF-8 cs_CZ.UTF-8
+new_localedef -i de_DE -f ISO-8859-1 de_DE
+new_localedef -i de_DE@euro -f ISO-8859-15 de_DE@euro
+new_localedef -i de_DE -f UTF-8 de_DE.UTF-8
+new_localedef -i el_GR -f ISO-8859-7 el_GR
+new_localedef -i en_GB -f ISO-8859-1 en_GB
+new_localedef -i en_GB -f UTF-8 en_GB.UTF-8
+new_localedef -i en_HK -f ISO-8859-1 en_HK
+new_localedef -i en_PH -f ISO-8859-1 en_PH
+new_localedef -i en_US -f ISO-8859-1 en_US
+new_localedef -i en_US -f UTF-8 en_US.UTF-8
+new_localedef -i es_ES -f ISO-8859-15 es_ES@euro
+new_localedef -i es_MX -f ISO-8859-1 es_MX
+new_localedef -i fa_IR -f UTF-8 fa_IR
+new_localedef -i fr_FR -f ISO-8859-1 fr_FR
+new_localedef -i fr_FR@euro -f ISO-8859-15 fr_FR@euro
+new_localedef -i fr_FR -f UTF-8 fr_FR.UTF-8
+new_localedef -i is_IS -f ISO-8859-1 is_IS
+new_localedef -i is_IS -f UTF-8 is_IS.UTF-8
+new_localedef -i it_IT -f ISO-8859-1 it_IT
+new_localedef -i it_IT -f ISO-8859-15 it_IT@euro
+new_localedef -i it_IT -f UTF-8 it_IT.UTF-8
+new_localedef -i ja_JP -f EUC-JP ja_JP
+new_localedef -i ja_JP -f UTF-8 ja_JP.UTF-8
+new_localedef -i nl_NL@euro -f ISO-8859-15 nl_NL@euro
+new_localedef -i ru_RU -f KOI8-R ru_RU.KOI8-R
+new_localedef -i ru_RU -f UTF-8 ru_RU.UTF-8
+new_localedef -i se_NO -f UTF-8 se_NO.UTF-8
+new_localedef -i ta_IN -f UTF-8 ta_IN.UTF-8
+new_localedef -i tr_TR -f UTF-8 tr_TR.UTF-8
+new_localedef -i zh_CN -f GB18030 zh_CN.GB18030
+new_localedef -i zh_HK -f BIG5-HKSCS zh_HK.BIG5-HKSCS
+new_localedef -i zh_TW -f UTF-8 zh_TW.UTF-8
+new_localedef --list-archive
+'''

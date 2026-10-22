@@ -1,0 +1,46 @@
+[package]
+name = "bzip2"
+version = "1.0.8"
+revision = 0
+summary = "Block-sorting file compressor and libbz2"
+license = "bzip2-1.0.6"
+homepage = "https://sourceware.org/bzip2/"
+
+[[source]]
+url = "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"
+sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
+signature = "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz.sig"
+signing_keys = ["EC3CFE88F6CA0788774F5C1D1AA44BE649DE760A"]  # Mark Wielaard
+
+# Package. Based on LFS 13.1 chapter 8.7. Differences:
+# - LFS's bzip2-1.0.8-install_docs-1 patch is not applied: it only copies the
+#   manual into a versioned doc directory (optional docs).
+# - The Makefiles set their own CFLAGS, so KEL's are passed on the command
+#   line (keeping upstream's -fPIC, warnings and large file support).
+# - The tests run in the test phase instead of as part of plain "make".
+# - The Makefile has no DESTDIR, so PREFIX points into it.
+# Like LFS: shared library (soname libbz2.so.1.0) with the libbz2.so,
+# libbz2.so.1 and libbz2.so.1.0 symlinks, programs linked against it, no
+# static library.
+[build]
+style = "make"
+prepare = '''
+sed -i 's@\(ln -s -f \)$(PREFIX)/bin/@\1@' Makefile
+sed -i "s@(PREFIX)/man@(PREFIX)/share/man@g" Makefile
+'''
+compile = '''
+make -f Makefile-libbz2_so CFLAGS="-fpic -fPIC -Wall -Winline $CFLAGS -D_FILE_OFFSET_BITS=64"
+make clean
+make libbz2.a bzip2 bzip2recover CFLAGS="-Wall -Winline $CFLAGS -D_FILE_OFFSET_BITS=64"
+'''
+install = '''
+make PREFIX="$DESTDIR"/usr install
+cp -av libbz2.so.* "$DESTDIR"/usr/lib
+ln -sfv libbz2.so.1.0.8 "$DESTDIR"/usr/lib/libbz2.so
+ln -sfv libbz2.so.1.0.8 "$DESTDIR"/usr/lib/libbz2.so.1
+cp -v bzip2-shared "$DESTDIR"/usr/bin/bzip2
+for i in bzcat bunzip2; do
+  ln -sfv bzip2 "$DESTDIR"/usr/bin/$i
+done
+rm -fv "$DESTDIR"/usr/lib/libbz2.a
+'''
