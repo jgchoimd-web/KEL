@@ -14,18 +14,33 @@ signing_keys = ["6C2B631563B8D330578D3CB474FD3FA2779E7073"]  # Aaron Merey
 
 # Package. Based on LFS 13.1 chapter 8.50 (written for 0.195): only libelf
 # is installed. 0.197 needs the same targets: libelf links only lib/libeu.a.
+# KEL deviation: -g is added to CFLAGS because the *-self tests (and
+# run-strip-strmerge.sh) read the DWARF of the freshly built tools; LFS gets
+# it from autoconf's default "-g -O2". kel strips debug info when packaging,
+# so the installed library does not change.
 [build]
 style = "gnu-configure"
 depends = ["bzip2", "xz", "zlib", "zstd"]
-configure_args = ["--disable-debuginfod", "--enable-libdebuginfod=dummy"]
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --sbindir=/usr/bin \
+             --mandir=/usr/share/man --infodir=/usr/share/info \
+             --disable-debuginfod --enable-libdebuginfod=dummy \
+             CFLAGS="$CFLAGS -g"
+'''
 compile = '''
 cd build
 make -C lib
 make -C libelf
 '''
+# The tests put their scratch directories in ${TMPDIR-/var/tmp}: use the
+# sandbox's /tmp (tmpfs) instead of the live root's /var/tmp. run-sysroot.sh
+# unpacks a tarball as root, and tar's default --same-owner cannot chown to
+# its uid 501 in the build sandbox (only uid 0 is mapped).
 test = '''
 cd build
-make -k check
+TMPDIR=/tmp TAR_OPTIONS=--no-same-owner make -k check
 '''
 install = '''
 cd build
