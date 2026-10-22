@@ -17,7 +17,10 @@ from urllib.parse import urlparse
 from kel.util import KelError
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9+._-]*$")
-VERSION_RE = re.compile(r"^[0-9][0-9A-Za-z._+~]*$")
+# apk version grammar (apk-package(5)) without the -r<revision> part, which
+# comes from the separate "revision" field.
+VERSION_RE = re.compile(
+    r"^[0-9]+(\.[0-9]+)*[a-z]?(_(alpha|beta|pre|rc|cvs|svn|git|hg|p)[0-9]*)*(~[0-9a-f]+)?$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 FINGERPRINT_RE = re.compile(r"^[0-9A-F]{40}$")
 PROFILE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")

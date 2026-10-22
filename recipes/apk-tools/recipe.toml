@@ -1,0 +1,32 @@
+[package]
+name = "apk-tools"
+version = "3.0.8"
+revision = 0
+summary = "Alpine package manager (apk v3), KEL's package format and manager (D-002)"
+license = "GPL-2.0-only"
+homepage = "https://gitlab.alpinelinux.org/alpine/apk-tools"
+
+# Upstream does not sign release tarballs. This tarball comes from Alpine's
+# distfiles mirror (gitlab.alpinelinux.org is unreachable from the bootstrap
+# host); on 2026-10-22 its contents were checked to be identical to the git
+# tag v3.0.8 (commit 44dcdfc255c26a4e19a4a27f66a54169cce5ca72) cloned from
+# https://github.com/alpinelinux/apk-tools.git.
+[[source]]
+url = "https://distfiles.alpinelinux.org/distfiles/edge/apk-tools-v3.0.8.tar.gz"
+sha256 = "e81c64a6e7c3806d45d4622c253e757aee970be84048554fa0eed79310e9453e"
+
+# Bootstrap: build apk on the host, only as a tool to create and index KEL
+# packages until KEL builds its own apk (it is never part of the output).
+[bootstrap.host]
+script = '''
+meson setup build \
+    --prefix="$KEL_HOSTTOOLS" \
+    --buildtype=release \
+    -Ddefault_library=static \
+    -Ddocs=disabled \
+    -Dlua=disabled \
+    -Dpython=disabled \
+    -Dtests=disabled
+meson compile -C build
+meson install -C build
+'''

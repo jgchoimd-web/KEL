@@ -1,0 +1,15 @@
+# Tools that run on the bootstrap host to drive the bootstrap. They are built
+# from pinned sources like everything else, but are never part of KEL's output.
+
+[stage]
+name = "host-tools"
+summary = "bootstrap host tools: apk-tools for creating and indexing packages"
+
+[[step]]
+recipe = "apk-tools"
+profile = "host"
+
+[verify]
+script = '''
+"$KEL_HOSTTOOLS/bin/apk" --version
+'''

@@ -196,6 +196,7 @@ def base_env(layout: Layout, arch: Arch, jobs: int, recipes: dict[str, Recipe],
             "CONFIG_SITE": f"{sysroot}/usr/share/config.site",
             "KEL_SYSROOT": str(sysroot),
             "KEL_TOOLS": str(tools),
+            "KEL_HOSTTOOLS": str(layout.host_tools(arch)),
         })
     else:
         env.update({"PATH": "/usr/bin:/usr/sbin", "HOME": "/root", "KEL_SYSROOT": "/"})

@@ -48,6 +48,9 @@ REQUIREMENTS = (
     Requirement("texinfo (makeinfo)", ("makeinfo", "--version"), "5.0"),
     Requirement("xz", ("xz", "--version"), "5.0.0"),
     Requirement("bubblewrap", ("bwrap", "--version"), "0.4"),
+    Requirement("meson (host tools)", ("meson", "--version"), "0.64"),
+    Requirement("ninja (host tools)", ("ninja", "--version"), "1.8"),
+    Requirement("pkg-config (host tools)", ("pkg-config", "--version"), "0.29"),
     Requirement("gpg", ("gpg", "--version"), "2.2"),
 )
 

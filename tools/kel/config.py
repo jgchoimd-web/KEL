@@ -78,6 +78,10 @@ class Layout:
         # from the host (via the sysroot) and later from inside it.
         return self.sysroot(arch) / "tools"
 
+    def host_tools(self, arch: Arch) -> Path:
+        # Bootstrap-only tools built for the host (e.g. apk for packaging).
+        return self.arch_root(arch) / "host-tools"
+
     def builds(self, arch: Arch) -> Path:
         return self.arch_root(arch) / "build"
 

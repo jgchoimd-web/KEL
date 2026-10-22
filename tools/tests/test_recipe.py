@@ -98,6 +98,12 @@ class RecipeTests(unittest.TestCase):
     def test_rejects_dest_escape(self):
         self.assertRejected(GOOD.replace('dest = "extra"', 'dest = "../x"'), "bad dest")
 
+    def test_versions_follow_apk_grammar(self):
+        for good in ("1.2.3", "2025b", "1.0_rc2", "3.1_p1", "1.0~ab12cd"):
+            parse_recipe(self.write(GOOD.replace('"1.2.3"', f'"{good}"', 1)), self.keys)
+        for bad in ("1.2-rc1", "2.0+git", "v1.0", "1.0_RC1"):
+            self.assertRejected(GOOD.replace('"1.2.3"', f'"{bad}"', 1), "bad version")
+
 
 class SpdxTests(unittest.TestCase):
     def test_valid(self):
