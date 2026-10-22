@@ -61,6 +61,11 @@ sh Configure -des \
              -D optimize="$CFLAGS" \
              -D useshrplib \
              -D usethreads
+# libperl.so has no SONAME, so the NEEDED libperl.so of /usr/bin/perl would
+# match no so: provide (kel takes them from DT_SONAME) and the package would
+# depend on a name nothing provides. Give it its file name as SONAME (no
+# change at run time).
+sed -i 's/^SHRPLDFLAGS = .*/& -Wl,-soname,$(LIBPERL)/' makefile
 '''
 # LFS: Compress::Raw::Zlib and Compress::Raw::Bzip2 use the system zlib and
 # bzip2 instead of their bundled copies (read when the extensions are
@@ -68,6 +73,7 @@ sh Configure -des \
 compile = '''
 export BUILD_ZLIB=False BUILD_BZIP2=0
 make
+readelf -d libperl.so | grep -q 'SONAME.*\[libperl\.so\]'
 '''
 # Two test files need more ids than the build sandbox maps (only uid/gid 0):
 # op/groups.t (setgroups with the daemon group) and File-Path's Path_root.t

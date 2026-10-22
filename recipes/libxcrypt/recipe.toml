@@ -1,0 +1,34 @@
+[package]
+name = "libxcrypt"
+version = "4.5.2"
+revision = 0
+summary = "Modern library for one-way hashing of passwords (libcrypt)"
+# Overall LGPL-2.1-or-later; individual files are BSD-2-Clause, BSD-3-Clause,
+# 0BSD or public domain (see LICENSING).
+license = "LGPL-2.1-or-later AND BSD-2-Clause AND BSD-3-Clause AND 0BSD AND LicenseRef-Public-Domain"
+homepage = "https://github.com/besser82/libxcrypt"
+
+[[source]]
+url = "https://github.com/besser82/libxcrypt/releases/download/v4.5.2/libxcrypt-4.5.2.tar.xz"
+sha256 = "71513a31c01a428bccd5367a32fd95f115d6dac50fb5b60c779d5c7942aec071"
+signature = "https://github.com/besser82/libxcrypt/releases/download/v4.5.2/libxcrypt-4.5.2.tar.xz.asc"
+signing_keys = ["678CE3FEE430311596DB8C16F52E98007594C21D"]  # Björn Esser
+
+# Package. Based on LFS 13.1 chapter 8.29 (built out of tree; perl runs the
+# header generators). LFS's optional second build with the obsolete API
+# (libcrypt.so.1 for binary-only programs) is not done: KEL builds
+# everything from source. LICENSING is shipped next to COPYING.LIB.
+[build]
+style = "gnu-configure"
+depends = ["perl"]
+configure_args = ["--enable-hashes=strong,glibc", "--enable-obsolete-api=no", "--disable-static",
+                  "--disable-failure-tokens"]
+prepare = '''
+# LFS: needed with glibc 2.43 and later, where strchr() on a const pointer
+# returns a const pointer (C23); the cast drops const and the build uses
+# -Werror.
+sed -i '/strchr/s/const//' lib/crypt-{sm3,gost}-yescrypt.c
+'''
+post_install = '''
+install -Dm644 -t "$DESTDIR"/usr/share/licenses/libxcrypt COPYING.LIB LICENSING
+'''

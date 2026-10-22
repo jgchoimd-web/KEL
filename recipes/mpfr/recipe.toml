@@ -1,0 +1,33 @@
+[package]
+name = "mpfr"
+version = "4.2.2"
+revision = 0
+summary = "Multiple-precision floating-point library with correct rounding"
+license = "LGPL-3.0-or-later"
+homepage = "https://www.mpfr.org/"
+
+# Same file as GCC's in-tree MPFR (recipes/gcc).
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz"
+sha256 = "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01"
+signature = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz.sig"
+signing_keys = ["A534BE3F83E241D918280AEB5831D11A0D4DB02A"]  # Vincent Lefevre
+
+# Package. Based on LFS 13.1 chapter 8.24 (built out of tree, no HTML
+# manual). The test suite is critical (LFS): all 198 tests must pass.
+[build]
+style = "gnu-configure"
+depends = ["gmp"]
+configure_args = ["--disable-static", "--enable-thread-safe"]
+test = '''
+cd build
+status=0
+make -k check || status=$?
+find tests -name test-suite.log -exec grep -H -E '^(FAIL|ERROR|XPASS|SKIP)' {} + || true
+pass=$(find tests -name '*.log' ! -name test-suite.log -exec cat {} + | grep -c '^PASS' || true)
+echo "MPFR test suite: $pass tests passed, make check exit status $status"
+if [ "$status" -ne 0 ] || [ "$pass" -lt 198 ]; then
+    echo "MPFR test suite failed (LFS 13.1 expects all 198 tests to pass)" >&2
+    exit 1
+fi
+'''
