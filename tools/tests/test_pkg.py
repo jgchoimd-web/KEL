@@ -57,6 +57,14 @@ class PackagingTests(unittest.TestCase):
         self.assertNotIn("so:libdemo.so.1", main.depends)
         self.assertEqual(check_policy(main), [])
 
+    def test_split_keeps_empty_directories(self):
+        # An empty directory that was in DESTDIR stays; one the split emptied goes.
+        (self.dest / "etc/ld.so.conf.d").mkdir(parents=True)
+        main, dev = split_subpackages(demo_recipe(), self.dest, self.tmp)
+        self.assertTrue((main.root / "etc/ld.so.conf.d").is_dir())
+        self.assertFalse((main.root / "usr/include").exists())
+        self.assertTrue((dev.root / "usr/include/demo.h").exists())
+
     def test_policy_rejects_unmerged_paths(self):
         (self.dest / "sbin").mkdir()
         (self.dest / "sbin" / "tool").write_text("x")

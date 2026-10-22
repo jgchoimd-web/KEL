@@ -49,17 +49,29 @@ class PackagePart:
     replaces: list[str] = field(default_factory=list)
 
 
-def _prune_empty_dirs(root: Path) -> None:
-    for d in sorted((p for p in root.rglob("*") if p.is_dir() and not p.is_symlink()),
-                    key=lambda p: len(p.parts), reverse=True):
+def _prune_vacated_dirs(root: Path, vacated: set[Path]) -> None:
+    """Remove directories that moving files to a subpackage left empty.
+
+    Only those: directories that were empty in DESTDIR to begin with are
+    part of the package (the base layout's /tmp, /home, /run, ..., or an
+    ld.so.conf.d for other packages to fill).
+    """
+    pending = set(vacated)
+    while pending:
+        d = max(pending, key=lambda p: len(p.parts))
+        pending.discard(d)
+        if d == root or root not in d.parents:
+            continue
         try:
             d.rmdir()
         except OSError:
-            pass
+            continue  # not empty
+        pending.add(d.parent)
 
 
 def split_subpackages(recipe: Recipe, destdir: Path, workdir: Path) -> list[PackagePart]:
     parts = []
+    vacated: set[Path] = set()
     for sub in recipe.subpackages:
         subroot = workdir / f"pkg-{sub.suffix}"
         subroot.mkdir(parents=True, exist_ok=True)
@@ -70,13 +82,13 @@ def split_subpackages(recipe: Recipe, destdir: Path, workdir: Path) -> list[Pack
                 target = subroot / match.relative_to(destdir)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(match), str(target))
-        _prune_empty_dirs(subroot)
+                vacated.add(match.parent)
         # Subpackages (dev, doc, ...) belong with the exact same main package,
         # e.g. a -dev package's libfoo.so symlink points into it.
         parts.append(PackagePart(f"{recipe.name}-{sub.suffix}",
                                  sub.summary or f"{recipe.summary} ({sub.suffix})",
                                  subroot, [f"{recipe.name}={recipe.pkgver}", *sub.depends]))
-    _prune_empty_dirs(destdir)
+    _prune_vacated_dirs(destdir, vacated)
     main = PackagePart(recipe.name, recipe.summary, destdir, list(recipe.depends),
                        list(recipe.provides), list(recipe.replaces))
     return [main, *parts]
