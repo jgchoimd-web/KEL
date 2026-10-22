@@ -43,7 +43,11 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
      레시피에서 고침)
    - 스크립트의 `#!` 인터프리터(sh, perl, python)를 런타임 의존성으로 자동 추가
    - 패키지를 만들 때 SBOM도 함께 생성(`kel sbom`을 빌드 단계에 연결)
-5. Phase 3 준비: 부팅 이미지 조사 결과(서브에이전트)를 바탕으로 커널·systemd-boot·이미지 도구 레시피
+   - systemd 262처럼 dlopen으로 여는 라이브러리는 ELF 검사로 안 보임: 지금은 레시피의 `depends`에 적었고,
+     ELF의 `.note.dlopen` 노트를 읽어 자동으로 넣는 방법을 검토
+5. Phase 3 준비 (stage 3b 레시피 작성 중 확인한 것 포함): systemd를 firstboot·ukify·systemd-boot를 켜서 다시 빌드
+   (D-008, D-009), 설치 후 `ldconfig`를 돌리는 apk 트리거, `wall`의 setgid tty 같은 소유권은 설치 때 적용.
+   그리고 부팅 이미지 조사 결과(서브에이전트)를 바탕으로 커널·systemd-boot·이미지 도구 레시피
 
 ## 세션 기록
 
