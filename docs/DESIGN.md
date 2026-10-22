@@ -199,6 +199,20 @@ files = ["usr/include", "usr/lib/*.a"]
   의존성 자동 계산, 라이선스 파일 확인) → `apk mkpkg` → SBOM.
 - 크로스 빌드는 처음부터 지원한다(`--arch aarch64`). 테스트(`check`)는 네이티브 빌드에서만.
 
+**구현하면서 정해진 규칙 (Phase 1, `tools/kel`)**
+
+| 주제 | 규칙 | 이유 |
+|---|---|---|
+| 샌드박스 모드 | `host`: 호스트 `/`를 읽기 전용으로 보고 작업 디렉터리만 쓰기 가능(stage 1~2, host-tools). `sysroot`: sysroot를 `/`로 삼고 호스트는 전혀 안 보임(stage 3부터) | 호스트 도구가 필요한 단계와 그렇지 않은 단계를 구분 |
+| `/bin/sh` | host 모드 샌드박스 안에서만 bash를 `/bin/sh`로 보이게 함 | Ubuntu의 `/bin/sh`는 dash, 빌드 시스템은 bash를 전제로 하는 경우가 많음 |
+| 파일 소유자 | `apk mkpkg`를 user namespace 안에서 uid 0으로 실행 | apk v3는 소유자를 이름으로 기록하고, 이름은 루트의 `/etc/passwd`에서 찾음. 호스트 사용자 이름이 패키지에 들어가는 것을 막음 |
+| 단일 uid 한계 | 비특권 샌드박스는 uid/gid 하나만 매핑하므로 root 외 소유자(예: `utmp` 그룹)는 지금 표현할 수 없음 | Phase 2에서 패키지 메타데이터로 소유자를 지정하는 방법을 마련 |
+| `so:` 의존성 | ELF의 `DT_SONAME`은 `so:<soname>=<파일 이름의 버전>`으로 provides, `DT_NEEDED`는 `so:<name>`으로 depends | apk는 버전 없는 provides를 자동 선택하지 않음(apk-package(5)) |
+| 서브패키지 | `-dev`, `-doc` 등은 같은 버전의 본 패키지에 의존(`<이름>=<버전>-r<리비전>`) | `-dev`의 `.so` 링크는 본 패키지의 라이브러리를 가리킴 |
+| merged `/usr` | 빌드의 마지막 단계에서 `bin`, `sbin`, `usr/sbin`을 `usr/bin`으로, `lib`, `lib64`, `usr/lib64`를 `usr/lib`로 옮김. 남아 있으면 정책 위반 | DESIGN 4.7 |
+| 개발용 서명 키 | `work/keys/`에 RSA-4096 생성(공개 키는 `work/keys/trusted/`), git에 넣지 않음 | D-014, D-019 |
+| 부트스트랩 패키징 | stage 3에서는 호스트용 apk(host-tools 단계)로 패키지를 만들고 내용을 빌드 루트에 복사 | KEL의 apk가 빌드되기 전까지의 임시 방법. stage 4부터 KEL의 apk 사용 |
+
 ### 4.4 libc — D-004
 
 **추천: glibc.** (현재 2.44, 6개월 주기, release 브랜치 백포트 유지)
