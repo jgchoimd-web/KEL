@@ -14,7 +14,8 @@ signature = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-
 signature_type = "detached-uncompressed"
 signing_keys = ["B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284"]  # Karel Zak
 
-# Stage 3. Based on LFS 13.1 chapter 7.14.
+# Stage 3. Based on LFS 13.1 chapter 7.14. --disable-makeinstall-chown: the
+# sandbox maps only uid/gid 0, so install's "chgrp tty" on wall would fail.
 [bootstrap.stage3]
 script = '''
 mkdir -pv /var/lib/hwclock
@@ -30,6 +31,7 @@ mkdir -pv /var/lib/hwclock
             --disable-static \
             --disable-liblastlog2 \
             --without-python \
+            --disable-makeinstall-chown \
             ADJTIME_PATH=/var/lib/hwclock/adjtime \
             --docdir="/usr/share/doc/util-linux-$KEL_VERSION_UTIL_LINUX"
 make
