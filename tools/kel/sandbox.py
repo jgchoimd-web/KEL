@@ -47,9 +47,12 @@ def bwrap_root_command(argv: list[str], *, root: Path, chdir: str, env: dict[str
     Used once the bootstrap sysroot has its own shell and toolchain (stage 3
     onwards): nothing from the host is visible except the extra binds.
     """
+    # /sys is shown read-only: some build systems and test suites read it
+    # (LFS mounts sysfs in the chroot too).
     cmd = ["bwrap", "--die-with-parent", "--unshare-all", "--uid", "0", "--gid", "0",
            "--hostname", hostname, "--bind", str(root), "/",
-           "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--tmpfs", "/run"]
+           "--dev", "/dev", "--proc", "/proc", "--ro-bind", "/sys", "/sys",
+           "--tmpfs", "/tmp", "--tmpfs", "/run"]
     for src, dst in binds:
         cmd += ["--bind", str(src), dst]
     for src, dst in ro_binds:

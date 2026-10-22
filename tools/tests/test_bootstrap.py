@@ -106,7 +106,8 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--uid") + 1], "0")
         i = cmd.index("/r")
         self.assertEqual(cmd[i - 1:i + 2], ["--bind", "/r", "/"])
-        self.assertNotIn("--ro-bind", cmd)
+        ro = [cmd[k + 1] for k, a in enumerate(cmd) if a == "--ro-bind"]
+        self.assertEqual(ro, ["/sys"])  # the host's / is never bound, only /sys read-only
         self.assertIn("--unshare-all", cmd)
 
     def test_no_network_and_clean_env(self):
