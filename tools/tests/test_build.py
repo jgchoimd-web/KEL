@@ -1,3 +1,4 @@
+import re
 import unittest
 
 from kel.build import build_script
@@ -17,7 +18,7 @@ class BuildScriptTests(unittest.TestCase):
         self.assertIn("--sbindir=/usr/bin", script)
         self.assertIn("--disable-static", script)
         self.assertIn('make DESTDIR="$DESTDIR" install', script)
-        order = [line for line in script.splitlines() if line.startswith("kel_")]
+        order = [line for line in script.splitlines() if re.fullmatch(r"kel_\w+", line)]
         self.assertEqual(order, ["kel_patch", "kel_prepare", "kel_configure", "kel_compile",
                                  "kel_test", "kel_install", "kel_post_install", "kel_finish"])
 
