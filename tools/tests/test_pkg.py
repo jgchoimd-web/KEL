@@ -96,5 +96,25 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(os.readlink(root / "usr/lib/libdemo.so"), "libdemo.so.1")
 
 
+class PolicyTests(unittest.TestCase):
+    def test_base_layout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "usr/bin").mkdir(parents=True)
+            (root / "bin").symlink_to("usr/bin")
+            (root / "tmp").mkdir()
+            (root / "usr/local/share/man").mkdir(parents=True)
+            part = PackagePart("filesystem", "Base layout", root)
+            self.assertEqual(check_policy(part), [])
+            (root / "lib64").symlink_to("lib")
+            (root / "tmp/stray").write_text("x")
+            (root / "kel").mkdir()
+            problems = check_policy(part)
+            self.assertTrue(any("/lib64 must be a symlink to usr/lib" in p for p in problems),
+                            problems)
+            self.assertTrue(any("files under /tmp" in p for p in problems), problems)
+            self.assertTrue(any("/kel (build location)" in p for p in problems), problems)
+
+
 if __name__ == "__main__":
     unittest.main()

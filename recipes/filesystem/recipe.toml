@@ -43,6 +43,39 @@ chmod -v 664 /var/log/lastlog
 chmod -v 600 /var/log/btmp
 '''
 
+# The same layout as a package (stage 3b onwards): build roots and installed
+# systems get it from apk, so it must come first. All files are owned by
+# root; runtime state such as /var/log/wtmp is created by systemd-tmpfiles
+# at boot instead of being shipped.
+[build]
+style = "custom"
+strip = false
+install = '''
+cd "$DESTDIR"
+install -d -m 0755 boot dev etc etc/opt home media mnt opt proc run srv sys usr var
+install -d -m 0750 root
+install -d -m 1777 tmp var/tmp
+install -d -m 0755 usr/bin usr/include usr/lib usr/lib/firmware usr/lib/locale usr/libexec usr/src
+install -d -m 0755 usr/local/{bin,include,lib,src}
+install -d -m 0755 usr/{,local/}share/{color,dict,doc,info,locale,man,misc,terminfo,zoneinfo}
+install -d -m 0755 usr/{,local/}share/man/man{1..8}
+install -d -m 0755 var/{cache,lib,local,log,mail,opt,spool} var/lib/{color,misc,locate}
+ln -s usr/bin bin
+ln -s usr/bin sbin
+ln -s usr/lib lib
+if [ "$KEL_ARCH" = x86_64 ]; then
+    ln -s usr/lib lib64
+fi
+ln -s bin usr/sbin
+ln -s lib usr/lib64
+ln -s ../run var/run
+ln -s ../run/lock var/lock
+ln -s ../proc/self/mounts etc/mtab
+install -m 0644 "$KEL_SRCDIR"/etc/{passwd,group,hosts} etc/
+install -m 0644 "$KEL_SRCDIR"/usr/lib/os-release usr/lib/os-release
+ln -s ../usr/lib/os-release etc/os-release
+'''
+
 # End of stage 3a: drop documentation and libtool archives of the temporary
 # tools and the cross toolchain (LFS 12.4 chapter 7.13).
 [bootstrap.stage3-cleanup]

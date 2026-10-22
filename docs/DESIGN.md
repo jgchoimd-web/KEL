@@ -206,10 +206,11 @@ files = ["usr/include", "usr/lib/*.a"]
 | 샌드박스 모드 | `host`: 호스트 `/`를 읽기 전용으로 보고 작업 디렉터리만 쓰기 가능(stage 1~2, host-tools). `sysroot`: sysroot를 `/`로 삼고 호스트는 전혀 안 보임(stage 3부터) | 호스트 도구가 필요한 단계와 그렇지 않은 단계를 구분 |
 | `/bin/sh` | host 모드 샌드박스 안에서만 bash를 `/bin/sh`로 보이게 함 | Ubuntu의 `/bin/sh`는 dash, 빌드 시스템은 bash를 전제로 하는 경우가 많음 |
 | 파일 소유자 | `apk mkpkg`를 user namespace 안에서 uid 0으로 실행 | apk v3는 소유자를 이름으로 기록하고, 이름은 루트의 `/etc/passwd`에서 찾음. 호스트 사용자 이름이 패키지에 들어가는 것을 막음 |
-| 단일 uid 한계 | 비특권 샌드박스는 uid/gid 하나만 매핑하므로 root 외 소유자(예: `utmp` 그룹)는 지금 표현할 수 없음 | Phase 2에서 패키지 메타데이터로 소유자를 지정하는 방법을 마련 |
+| 패키지 파일은 모두 root 소유 | 비특권 샌드박스는 uid/gid 하나만 매핑하므로 패키지 안의 파일은 전부 `root:root`다. root가 아닌 소유자가 필요한 것(사용자, `/var` 아래 상태 디렉터리, `/var/log/wtmp` 같은 파일)은 패키지가 `sysusers.d`와 `tmpfiles.d` 설정을 싣고 설치 때와 부팅 때 systemd가 만든다. setuid root는 모드로 표현할 수 있어 그대로 둔다 | subuid 범위와 setuid 도우미(`newuidmap`)가 없는 빌드 호스트(CI 포함)에서도 같은 결과. systemd 배포판의 일반적인 방식이고, 나중의 이미지 기반 변형판(`/usr`만 담은 이미지)과도 맞음 |
 | `so:` 의존성 | ELF의 `DT_SONAME`은 `so:<soname>=<파일 이름의 버전>`으로 provides, `DT_NEEDED`는 `so:<name>`으로 depends | apk는 버전 없는 provides를 자동 선택하지 않음(apk-package(5)) |
 | 서브패키지 | `-dev`, `-doc` 등은 같은 버전의 본 패키지에 의존(`<이름>=<버전>-r<리비전>`) | `-dev`의 `.so` 링크는 본 패키지의 라이브러리를 가리킴 |
-| merged `/usr` | 빌드의 마지막 단계에서 `bin`, `sbin`, `usr/sbin`을 `usr/bin`으로, `lib`, `lib64`, `usr/lib64`를 `usr/lib`로 옮김. 남아 있으면 정책 위반 | DESIGN 4.7 |
+| merged `/usr` | 빌드의 마지막 단계에서 `bin`, `sbin`, `usr/sbin`을 `usr/bin`으로, `lib`, `lib64`, `usr/lib64`를 `usr/lib`로 옮김. 이 경로는 정해진 심볼릭 링크(`bin → usr/bin` 등, `filesystem` 패키지가 싣는다)로만 허용하고 디렉터리면 정책 위반 | DESIGN 4.7 |
+| 비어 있어야 하는 경로 | `/usr/local`, `/opt`, `/tmp`, `/var/tmp`, `/run`, `/home`, `/root`, `/dev`, `/proc`, `/sys`, `/mnt`, `/media`, `/srv`에는 빈 디렉터리만 실을 수 있음. `/tools`와 `/kel`(부트스트랩·빌드 위치)은 아예 금지 | 실행 중에 채워지거나 관리자 몫인 경로. 빌드 환경이 패키지에 새는 것을 막음 |
 | 개발용 서명 키 | `work/keys/`에 RSA-4096 생성(공개 키는 `work/keys/trusted/`), git에 넣지 않음 | D-014, D-019 |
 | 부트스트랩 패키징 | stage 3에서는 호스트용 apk(host-tools 단계)로 패키지를 만들고 내용을 빌드 루트에 복사 | KEL의 apk가 빌드되기 전까지의 임시 방법. stage 4부터 KEL의 apk 사용 |
 

@@ -9,6 +9,7 @@ names, resolved through the root's /etc/passwd).
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -20,10 +21,16 @@ from kel.recipe import Recipe
 from kel.sandbox import bwrap_command
 from kel.util import KelError, log
 
-# Paths that must be symlinks into /usr (merged /usr, DESIGN.md 4.7) or must
-# not be shipped at all.
-FORBIDDEN_DIRS = ("bin", "sbin", "lib", "lib64", "usr/sbin", "usr/lib64",
-                  "usr/local", "tools", "kel", "tmp", "run", "home", "dev", "proc", "sys")
+# Merged /usr (DESIGN.md 4.7): these paths may only be shipped as exactly
+# these symlinks (by the filesystem package), never as directories.
+MERGED_LINKS = {"bin": "usr/bin", "sbin": "usr/bin", "lib": "usr/lib", "lib64": "usr/lib",
+                "usr/sbin": "bin", "usr/lib64": "lib", "var/run": "../run",
+                "var/lock": "../run/lock"}
+# Mount points, runtime, home and site-local paths: empty directories only.
+EMPTY_ONLY = ("usr/local", "opt", "tmp", "var/tmp", "run", "home", "root", "dev", "proc",
+              "sys", "mnt", "media", "srv")
+# Bootstrap and build locations that must never reach a package.
+NEVER_SHIPPED = ("tools", "kel")
 LEAK_MARKERS = ("/kel/build", "/tools/")
 
 
@@ -105,10 +112,26 @@ def scan_shared_objects(root: Path) -> tuple[set[str], set[str], list[str]]:
 
 def check_policy(part: PackagePart) -> list[str]:
     problems = []
-    for d in FORBIDDEN_DIRS:
-        p = part.root / d
+    for rel, target in MERGED_LINKS.items():
+        p = part.root / rel
+        if p.is_symlink():
+            if os.readlink(p) != target:
+                problems.append(f"{part.name}: /{rel} must be a symlink to {target}")
+        elif p.exists():
+            problems.append(f"{part.name}: ships /{rel} (must be under /usr)")
+    for rel in EMPTY_ONLY:
+        p = part.root / rel
+        if p.is_symlink() or (p.exists() and not p.is_dir()):
+            problems.append(f"{part.name}: /{rel} must be a directory")
+        elif p.is_dir():
+            content = [c for c in p.rglob("*") if c.is_symlink() or not c.is_dir()]
+            if content:
+                problems.append(f"{part.name}: ships files under /{rel} "
+                                f"(e.g. /{content[0].relative_to(part.root)})")
+    for rel in NEVER_SHIPPED:
+        p = part.root / rel
         if p.exists() or p.is_symlink():
-            problems.append(f"{part.name}: ships /{d} (must be under /usr or not shipped)")
+            problems.append(f"{part.name}: ships /{rel} (build location)")
     if not any(part.root.iterdir()):
         problems.append(f"{part.name}: package is empty")
     return problems
