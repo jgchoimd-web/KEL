@@ -133,5 +133,5 @@ cd build
 make
 rm -rf "$KEL_SYSROOT/usr/lib/gcc/$KEL_TARGET/$KEL_VERSION_GCC/include-fixed"
 make DESTDIR="$KEL_SYSROOT" install
-ln -sv gcc "$KEL_SYSROOT/usr/bin/cc"
+ln -sfv gcc "$KEL_SYSROOT/usr/bin/cc"
 '''
