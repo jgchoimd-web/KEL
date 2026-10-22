@@ -1,0 +1,35 @@
+[package]
+name = "elfutils"
+version = "0.197"
+revision = 0
+summary = "libelf from elfutils: library to read and write ELF files"
+license = "GPL-2.0-or-later OR LGPL-3.0-or-later"
+homepage = "https://sourceware.org/elfutils/"
+
+[[source]]
+url = "https://sourceware.org/elfutils/ftp/0.197/elfutils-0.197.tar.bz2"
+sha256 = "1fdf525f22dcf796d99a99ba3ea00a1f7b1ae5421bc62e8443a708920b99b904"
+signature = "https://sourceware.org/elfutils/ftp/0.197/elfutils-0.197.tar.bz2.sig"
+signing_keys = ["6C2B631563B8D330578D3CB474FD3FA2779E7073"]  # Aaron Merey
+
+# Package. Based on LFS 13.1 chapter 8.50 (written for 0.195): only libelf
+# is installed. 0.197 needs the same targets: libelf links only lib/libeu.a.
+[build]
+style = "gnu-configure"
+depends = ["bzip2", "xz", "zlib", "zstd"]
+configure_args = ["--disable-debuginfod", "--enable-libdebuginfod=dummy"]
+compile = '''
+cd build
+make -C lib
+make -C libelf
+'''
+test = '''
+cd build
+make -k check
+'''
+install = '''
+cd build
+make -C libelf DESTDIR="$DESTDIR" install
+install -vDm644 config/libelf.pc "$DESTDIR/usr/lib/pkgconfig/libelf.pc"
+rm -v "$DESTDIR/usr/lib/libelf.a"
+'''

@@ -54,3 +54,57 @@ make
 make DESTDIR="$KEL_SYSROOT" install
 rm -v "$KEL_SYSROOT"/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
 '''
+
+# Package. Based on LFS 13.1 chapter 8.22 (built out of tree).
+# --build=$KEL_TARGET keeps the triplet x86_64-kel-linux-gnu (config.guess
+# would say x86_64-pc-linux-gnu). The test suite is critical (LFS): it always
+# runs and every FAIL line is printed together with the per-tool summaries.
+# Failures are not fatal (LFS 13.1 knows one gprofng failure, and the
+# sandbox may add some, e.g. where perf events are unavailable); the build
+# only stops if the binutils, gas and ld suites did not run at all (no .sum
+# files, e.g. runtest missing, which make check would only warn about).
+# tooldir=/usr as in LFS; the static libraries and gprofng docs are removed
+# as in LFS.
+[build]
+style = "gnu-configure"
+depends = ["zlib", "zstd", "dejagnu", "gettext", "texinfo"]
+make_args = ["tooldir=/usr"]
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr \
+    --sysconfdir=/etc \
+    --build="$KEL_TARGET" \
+    --enable-ld=default \
+    --enable-plugins \
+    --enable-shared \
+    --disable-werror \
+    --enable-64-bit-bfd \
+    --enable-new-dtags \
+    --with-system-zlib \
+    --with-lib-path=/usr/lib \
+    --enable-default-hash-style=gnu
+'''
+test = '''
+cd build
+make -k check || true
+find . -name '*.log' -exec grep -H '^FAIL:' {} + || true
+find . -name '*.sum' | sort | while read -r sum; do
+    echo "== $sum"
+    sed -n '/=== .* Summary ===/,$p' "$sum"
+done
+for sum in binutils/binutils.sum gas/testsuite/gas.sum ld/ld.sum; do
+    if [ ! -f "$sum" ]; then
+        echo "binutils test suite did not run: $sum is missing" >&2
+        exit 1
+    fi
+done
+'''
+install = '''
+cd build
+make tooldir=/usr DESTDIR="$DESTDIR" install
+'''
+post_install = '''
+rm -rfv "$DESTDIR"/usr/lib/lib{bfd,ctf,ctf-nobfd,gprofng,opcodes,sframe}.a \
+        "$DESTDIR"/usr/share/doc/gprofng/
+'''

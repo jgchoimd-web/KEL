@@ -1,0 +1,33 @@
+[package]
+name = "sqlite"
+version = "3.54.1"
+revision = 0
+summary = "Embedded SQL database engine (libsqlite3 and the sqlite3 shell)"
+license = "blessing"
+homepage = "https://sqlite.org/"
+
+# SQLite publishes no signature (D-027). The file's SHA3-256 equals the one
+# on https://sqlite.org/download.html, checked 2026-10-22.
+[[source]]
+url = "https://sqlite.org/2026/sqlite-autoconf-3540100.tar.gz"
+sha256 = "926ef8d3eab93fbf6e06011901273eec076b25594a4e1cdadd50c987f4f6d64e"
+
+# Package. Based on LFS 13.1 chapter 8.52 (written for 3.53.4), built in
+# the source tree like LFS. KEL deviations: --soname=legacy gives
+# libsqlite3.so its historical SONAME libsqlite3.so.0 (the autosetup build
+# sets none by default, so users would record NEEDED libsqlite3.so and kel
+# could derive no so: dependency); the documentation zip is not installed.
+# No tests: the amalgamation tarball has no test suite (LFS runs none).
+[build]
+style = "gnu-configure"
+out_of_tree = false
+check = false
+depends = ["ncurses", "readline", "zlib"]
+configure_args = [
+    "--disable-static",
+    "--enable-fts4",
+    "--enable-fts5",
+    "--soname=legacy",
+    "CPPFLAGS=-D SQLITE_ENABLE_COLUMN_METADATA=1 -D SQLITE_ENABLE_UNLOCK_NOTIFY=1 -D SQLITE_ENABLE_DBSTAT_VTAB=1 -D SQLITE_SECURE_DELETE=1",
+]
+make_args = ["LDFLAGS.rpath="]
