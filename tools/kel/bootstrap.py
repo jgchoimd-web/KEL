@@ -350,12 +350,14 @@ def _tail(path: Path, lines: int = 40) -> str:
 def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path,
                env: dict[str, str], logfile: Path, recipe_dir: Path | None = None,
                config_site: Path | None = None,
-               extra_ro_binds: list[tuple[Path, str]] = ()) -> None:
+               extra_ro_binds: list[tuple[Path, str]] = (),
+               cap_add: list[str] = ()) -> None:
     """Run a step script in the sandbox; workdir/src (if any) is the start directory.
 
     The script finds the recipe directory in $KEL_RECIPEDIR and, if given,
-    kel's autoconf cache file through $CONFIG_SITE. extra_ro_binds are only
-    used in "sysroot" stages (the host is visible anyway in "host" stages).
+    kel's autoconf cache file through $CONFIG_SITE. extra_ro_binds and
+    cap_add are only used in "sysroot" stages (the host is visible anyway in
+    "host" stages).
     """
     argv = ["/bin/bash", "-e", "-u", "-o", "pipefail", "-c", SCRIPT_PRELUDE + script]
     has_src = (workdir / "src").is_dir()
@@ -390,7 +392,8 @@ def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path
         ro_binds.extend(extra_ro_binds)
         cmd = bwrap_root_command(argv, root=layout.sysroot(arch),
                                  chdir=env.get("KEL_SRCDIR", INNER_WORKDIR), env=env,
-                                 binds=[(workdir, INNER_WORKDIR)], ro_binds=ro_binds)
+                                 binds=[(workdir, INNER_WORKDIR)], ro_binds=ro_binds,
+                                 cap_add=list(cap_add))
     rc = _run_logged(cmd, logfile)
     if rc != 0:
         raise KelError(f"failed (exit {rc}); log: {logfile}\n{_tail(logfile)}")
@@ -555,7 +558,9 @@ def verify_stage(layout: Layout, arch: Arch, stage: Stage, env: dict[str, str]) 
     if stage.root == "sysroot" and (repo / "Packages.adb").exists():
         # Lets the check install packages from the new repository with KEL's apk.
         binds = [(repo, "/kel/repo"), (layout.keys() / "trusted", "/kel/keys")]
+    # The check may chroot into a root it installed (bwrap drops capabilities).
+    caps = ["CAP_SYS_CHROOT"] if stage.root == "sysroot" else []
     run_script(layout, arch, stage.root, stage.verify, workdir, env, logfile,
-               extra_ro_binds=binds)
+               extra_ro_binds=binds, cap_add=caps)
     log(f"stage {stage.name}: verification passed")
     print(_tail(logfile, 20))

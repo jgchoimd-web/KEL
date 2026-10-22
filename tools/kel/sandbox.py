@@ -75,7 +75,7 @@ def bwrap_command(argv: list[str], *, chdir: Path, env: dict[str, str],
 def bwrap_root_command(argv: list[str], *, root: Path, chdir: str, env: dict[str, str],
                        binds: list[tuple[Path, str]], ro_binds: list[tuple[Path, str]] = (),
                        hostname: str = "kel-build", readonly: bool = False,
-                       chroot_into: list[str] = ()) -> list[str]:
+                       chroot_into: list[str] = (), cap_add: list[str] = ()) -> list[str]:
     """Run argv with root as "/", as uid 0 inside a user namespace.
 
     Used once the bootstrap sysroot has its own shell and toolchain (stage 3
@@ -97,6 +97,9 @@ def bwrap_root_command(argv: list[str], *, root: Path, chdir: str, env: dict[str
     for src, dst in ro_binds:
         cmd += ["--ro-bind", str(src), dst]
     cmd += _chroot_args(list(chroot_into))
+    for cap in cap_add:
+        # Held only inside the sandbox's user namespace (see bwrap_command).
+        cmd += ["--cap-add", cap]
     if readonly:
         # Must come after every mount: it only affects the root mount itself,
         # the binds above keep their own modes.
