@@ -37,3 +37,6 @@ __pycache__/
 .venv/
 .mypy_cache/
 .pytest_cache/
+
+# Claude Code agent worktrees and local settings
+/.claude/

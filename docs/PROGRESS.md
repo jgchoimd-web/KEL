@@ -8,8 +8,8 @@
 | 단계 | 상태 | 비고 |
 |---|---|---|
 | Phase 0. 설계 | **완료**: DESIGN.md v0.2, 결정 확정(사용자 위임) | [DESIGN.md](DESIGN.md), [DECISIONS.md](DECISIONS.md) |
-| Phase 1. 부트스트랩 | **진행 중**: stage 1 완료·검증, stage 2 빌드 중 | 아래 Phase 1 표 |
-| Phase 2. 빌드 시스템과 패키지 관리 | 일부 선행 구현 | `kel` 패키지 빌드·apk 패키징·서명 색인 (단위 테스트로 확인) |
+| Phase 1. 부트스트랩 | **진행 중**: stage 1·2 완료·검증, stage 3a 빌드 중, stage 3b 레시피 작성 중 | 아래 Phase 1 표 |
+| Phase 2. 빌드 시스템과 패키지 관리 | 일부 선행 구현 | `kel` 패키지 빌드·apk 패키징·서명 색인·파일 충돌 검사 (단위 테스트로 확인) |
 | Phase 3. 첫 부팅 이미지 | 시작 전 | |
 | Phase 4. 엔터프라이즈 기능 | 시작 전 | |
 | Phase 5. 문서 | 시작 전 | |
@@ -21,10 +21,11 @@
 | stage 0 호스트 점검 | 완료 | `./kel check-host` 전부 통과 (Ubuntu 24.04, gawk·texinfo 추가 설치) |
 | host-tools | 완료 | apk-tools 3.0.8 (호스트용 패키징 도구) 9초 |
 | stage 1 크로스 툴체인 | **완료·검증** | binutils 1m17s, GCC pass 1 13m59s, 헤더 8s, glibc 4m29s, libstdc++ 1m06s (합계 약 21분) |
-| stage 2 임시 도구 | 진행 중 | 레시피 17개 (LFS 12.4 6장, 최신 업스트림) |
-| stage 3 격리 환경 진입·최종 패키지 | 준비 중 | filesystem 레시피, sysroot 루트 샌드박스, 패키지 빌드 경로 구현 완료. LFS 7·8장 조사 중 |
-| stage 4 셀프 호스팅 | 시작 전 | |
-| stage 5 재현성 비교 | 시작 전 | |
+| stage 2 임시 도구 | **완료·검증** | 레시피 17개 (LFS 13.1 6장). GCC pass 2 21분, 나머지 16개 합계 11분. `STAGE2 VERIFY OK` |
+| stage 3a 격리 환경 진입 (LFS 7장) | 빌드 중 | 레시피 9개: filesystem, gettext, bison, perl, zlib, mpdecimal, python, texinfo, util-linux |
+| stage 3b 최종 패키지 (LFS 8장) | 레시피 작성 중 | 77단계(`bootstrap/stage3b.toml`), 서브에이전트 5개가 나눠 작성 |
+| stage 4 셀프 호스팅 | 도구 작성 중 | KEL의 apk로 빌드 루트를 만들어 전체 재빌드하는 기능 (서브에이전트) |
+| stage 5 재현성 비교 | 도구 작성 중 | 두 저장소의 패키지를 풀어 비교하는 `kel compare` (서브에이전트) |
 
 stage 1 검증 내용: 크로스 GCC로 만든 프로그램이 `/lib64/ld-linux-x86-64.so.2`를 요구하고, KEL sysroot의
 crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로더로 실행됨. `.comment`는
@@ -32,11 +33,11 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
 
 ## 다음에 할 일
 
-1. stage 2 완료와 검증 (sysroot의 도구가 KEL glibc로 실행, 호스트 흔적 없음)
-2. stage 3: LFS 7장 임시 도구(gettext, bison, perl, python, texinfo, util-linux)를 sysroot 루트
-   샌드박스에서 빌드 → 8장 패키지를 `profile = "package"` 단계로 빌드해 첫 apk 저장소 생성
-3. stage 4: stage 3 패키지만으로 만든 빌드 루트에서 전체 재빌드 (KEL의 apk 사용)
+1. stage 3a 완료와 검증
+2. stage 3b: 서브에이전트가 쓴 레시피를 검토·커밋하고 77단계를 빌드해 첫 apk 저장소 생성
+3. stage 4: stage 3b 패키지만으로 만든 빌드 루트에서 전체 재빌드 (KEL의 apk 사용)
 4. stage 5: 재빌드 결과 비교 보고서
+5. Phase 3 준비: 부팅 이미지 조사 결과(서브에이전트)를 바탕으로 커널·systemd-boot·이미지 도구 레시피
 
 ## 세션 기록
 
@@ -71,3 +72,15 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
   - 레시피 전체 해시로 단계를 판정하면 프로필 추가만으로 재빌드됨 → 프로필별 입력으로 판정.
   - 테스트 실패 상태로 커밋이 한 번 올라감(커밋 명령이 `tail` 뒤에 붙어 있었음) → 바로 수정 커밋,
     이후 `tools/check` 통과 시에만 커밋.
+- stage 2 완료·검증. 단계별 시간: GCC pass 2 20m59s, binutils pass 2 1m41s, ncurses 1m33s,
+  coreutils 1m28s, 나머지 13개는 각 11~45초.
+- 기준 문서를 LFS 13.1로 옮김(D-026). 13.1이 우리와 같은 binutils·GCC·glibc 버전을 쓴다는 것을 확인하고
+  레시피를 명령 단위로 비교해 차이를 반영했다(GCC pass 2 재빌드 포함). 버전 선택 기준은 D-027.
+- glibc는 업스트림 `release/2.44/master`에서 직접 만든 패치(58커밋, 이후 CVE 수정 포함)를 쓴다.
+- `kel` 추가 기능: 아키텍처별 ISA 기준선 플래그, 패키지 사이 파일 충돌 검사, 모든 단계의
+  `$KEL_RECIPEDIR`, `CONFIG_SITE`(glibc 2.44용 autoconf 캐시 값), 최상위 디렉터리 없는 tarball(`topdir = false`),
+  검증 스크립트에서 새 저장소를 KEL의 apk로 설치해 보는 구성.
+- 사용자 요청("서브에이전트를 많이 만들어서 가속화")에 따라 작업을 병렬화: stage 3b 레시피 5개 묶음,
+  stage 4 셀프 호스팅 도구, SBOM·저장소 비교 도구, Phase 3 부팅 조사를 서브에이전트 8개가 동시에 진행.
+  공통 규칙은 레시피 작성 지침 한 벌로 맞춘다(병합 sbin, 버전 없는 문서 디렉터리, 정적 라이브러리 제외,
+  빌드 호스트 전용 최적화 제외, 파일은 모두 root 소유, 파일 하나에 패키지 하나).
