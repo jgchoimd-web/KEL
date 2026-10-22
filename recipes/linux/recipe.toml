@@ -1,0 +1,26 @@
+[package]
+name = "linux"
+version = "6.18.58"
+revision = 0
+summary = "The Linux kernel (longterm 6.18)"
+license = "GPL-2.0-only"
+homepage = "https://www.kernel.org/"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.58.tar.xz"
+sha256 = "069b19f9032c4dac8149ae4b6520c35debca0f42a9f6d52ee55ba6ca9b818013"
+signature = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.58.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["647F28654894E3BD457199BE38DBBDC86092693E"]  # Greg Kroah-Hartman
+
+# Stage 1: sanitized kernel API headers for glibc and userspace.
+# Based on LFS 12.4 chapter 5.4.
+[bootstrap.headers]
+script = '''
+make ARCH="$KEL_KERNEL_ARCH" mrproper
+make ARCH="$KEL_KERNEL_ARCH" headers
+find usr/include -type f ! -name '*.h' -delete
+mkdir -p "$KEL_SYSROOT/usr"
+cp -r usr/include "$KEL_SYSROOT/usr"
+'''

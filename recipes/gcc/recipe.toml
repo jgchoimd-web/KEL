@@ -1,0 +1,95 @@
+[package]
+name = "gcc"
+version = "16.2.0"
+revision = 0
+summary = "GNU Compiler Collection (C and C++)"
+license = "GPL-3.0-or-later AND GPL-3.0-or-later WITH GCC-exception-3.1"
+homepage = "https://gcc.gnu.org/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz"
+sha256 = "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e"
+signature = "https://ftp.gnu.org/gnu/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz.sig"
+signing_keys = ["13975A70E63C361C73AE69EF6EEB81F8981C74C7"]  # Richard Guenther
+
+# GMP, MPFR and MPC are built in-tree during the bootstrap.
+[[source]]
+url = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz"
+sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+signature = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz.sig"
+signing_keys = ["343C2FF0FBEE5EC2EDBEF399F3599FF828C67298"]  # Niels Möller
+dest = "gmp"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz"
+sha256 = "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01"
+signature = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz.sig"
+signing_keys = ["A534BE3F83E241D918280AEB5831D11A0D4DB02A"]  # Vincent Lefevre
+dest = "mpfr"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz"
+sha256 = "91204cd32f164bd3b7c992d4a6a8ce6519511aadab30f78b6982d0bf8d73e931"
+signature = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz.sig"
+signing_keys = ["AD17A21EF8AED8F1CC02DBD9F7D5C9BF765C61E3"]  # Andreas Enge
+dest = "mpc"
+
+# Stage 1: cross compiler without a C library (only enough to build glibc).
+# Based on LFS 12.4 chapter 5.3.
+[bootstrap.pass1]
+script = '''
+case "$KEL_ARCH" in
+  x86_64)
+    # KEL keeps 64-bit libraries in /usr/lib, not lib64 (DESIGN.md 4.7).
+    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+    ;;
+esac
+mkdir -v build
+cd build
+../configure \
+    --target="$KEL_TARGET" \
+    --prefix="$KEL_TOOLS" \
+    --with-glibc-version="$KEL_VERSION_GLIBC" \
+    --with-sysroot="$KEL_SYSROOT" \
+    --with-newlib \
+    --without-headers \
+    --enable-default-pie \
+    --enable-default-ssp \
+    --disable-nls \
+    --disable-shared \
+    --disable-multilib \
+    --disable-threads \
+    --disable-libatomic \
+    --disable-libgomp \
+    --disable-libquadmath \
+    --disable-libssp \
+    --disable-libvtv \
+    --disable-libstdcxx \
+    --enable-languages=c,c++
+make
+make install
+cd ..
+# The limits.h installed above is incomplete; build the full internal one.
+cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
+    "$(dirname "$("$KEL_TARGET-gcc" -print-libgcc-file-name)")/include/limits.h"
+'''
+
+# Stage 1: libstdc++ for the cross compiler, built against the new glibc.
+# Based on LFS 12.4 chapter 5.6.
+[bootstrap.libstdcxx]
+script = '''
+mkdir -v build
+cd build
+../libstdc++-v3/configure \
+    --host="$KEL_TARGET" \
+    --build="$(../config.guess)" \
+    --prefix=/usr \
+    --disable-multilib \
+    --disable-nls \
+    --disable-libstdcxx-pch \
+    --with-gxx-include-dir="/tools/$KEL_TARGET/include/c++/$KEL_VERSION_GCC"
+make
+make DESTDIR="$KEL_SYSROOT" install
+# libtool archives are harmful when cross compiling.
+rm -fv "$KEL_SYSROOT"/usr/lib/lib{stdc++,stdc++exp,stdc++fs,supc++}.la
+'''
