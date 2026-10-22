@@ -7,8 +7,8 @@
 
 | 단계 | 상태 | 비고 |
 |---|---|---|
-| Phase 0. 설계 | **결정 확인 대기**: DESIGN.md 초안 v0.1 완료 | [DESIGN.md](DESIGN.md), [DECISIONS.md](DECISIONS.md) |
-| Phase 1. 부트스트랩 | 시작 전 | Phase 0 결정 확정 후 |
+| Phase 0. 설계 | **완료**: DESIGN.md v0.2, 결정 확정(사용자 위임) | [DESIGN.md](DESIGN.md), [DECISIONS.md](DECISIONS.md) |
+| Phase 1. 부트스트랩 | **진행 중** | `kel` 도구 뼈대, stage 1 크로스 툴체인부터 |
 | Phase 2. 빌드 시스템과 패키지 관리 | 시작 전 | |
 | Phase 3. 첫 부팅 이미지 | 시작 전 | |
 | Phase 4. 엔터프라이즈 기능 | 시작 전 | |
@@ -16,13 +16,12 @@
 
 ## 다음에 할 일
 
-1. 사용자가 [DECISIONS.md](DECISIONS.md)의 "확인 대기" 항목을 확정하거나 수정한다.
-   특히 DESIGN.md 9장의 여섯 가지(D-002, D-004/D-006, D-011, D-013, D-015, D-001).
-2. 확정되면 DESIGN.md를 v0.2로 올리고 Phase 1을 시작한다.
+1. Phase 1 stage 1:
    - `tools/kel` 뼈대: 레시피 로더(TOML), 소스 가져오기와 sha256·서명 검증, bubblewrap 실행기
    - 크로스 툴체인 레시피: binutils → GCC pass 1 → Linux API headers → glibc → libstdc++
    - 첫 검증: `x86_64-kel-linux-gnu-gcc`로 만든 hello world가 KEL sysroot의 glibc 동적 링커를
      요구하는지 `readelf -l`로 확인
+2. Phase 1 stage 2~5: 크로스 임시 도구 → 격리 환경 진입 → 패키지 빌드 → 셀프 호스팅 → 재현성 비교
 
 ## 세션 기록
 
