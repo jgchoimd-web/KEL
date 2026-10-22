@@ -21,6 +21,7 @@ sha256 = "14f9af32b1767ff718477a8f974ad03c34341097e6b43f4ce54644ee974e268e"
 #   the same from configure's autodetection; this keeps the result
 #   independent of what the build root contains.
 # - The optional HTML documentation (a separate tarball) is not installed.
+# - libtcl8.6.so gets a SONAME (see configure).
 # - The license texts are installed by hand: they are called license.terms,
 #   which kel's COPYING*/LICENSE* rule does not pick up.
 # libtclstub8.6.a and the stub libraries of the bundled packages are kept,
@@ -31,11 +32,21 @@ depends = ["zlib"]
 configure = '''
 cd unix
 ./configure --prefix=/usr --mandir=/usr/share/man --disable-rpath --without-tzdata
+# KEL: give libtcl8.6.so a SONAME, its own file name. Upstream (and LFS)
+# link it without one, but kel takes a package's so: provides from
+# DT_SONAME, so tclsh8.6 and Expect would depend on an so:libtcl8.6.so that
+# no package provides. TCL_SHLIB_LD_EXTRAS is the Makefile's hook for extra
+# flags on the libtcl link only (configure puts -install_name there on
+# macOS). Programs keep DT_NEEDED libtcl8.6.so, as before.
+sed -i 's/^TCL_SHLIB_LD_EXTRAS[[:space:]]*=.*/TCL_SHLIB_LD_EXTRAS = -Wl,-soname,$(TCL_LIB_FILE)/' Makefile
+grep -q '^TCL_SHLIB_LD_EXTRAS = -Wl,-soname' Makefile
 '''
 compile = '''
 srcdir=$KEL_SRCDIR
 cd unix
-make
+# kel exports DESTDIR to every phase, but Tcl compiles $(DESTDIR)-prefixed
+# install paths into ::tcl::pkgconfig (tclPkgConfig.c): build with it empty.
+make DESTDIR=
 # Make the *Config.sh files point at the installed locations instead of the
 # build tree (LFS: packages built later against Tcl may need them).
 tdbc=tdbc1.1.13

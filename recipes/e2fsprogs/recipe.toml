@@ -22,9 +22,10 @@ signing_keys = ["3AB057B7E78D945C8C5591FBD36F769BC11804F0"]  # Theodore Ts'o
 # as in LFS: remove the static libraries, unpack libext2fs.info and add the
 # optional com_err.info; LFS's install-info into the system dir file is left
 # to install time. The mke2fs.conf tweak LFS suggests is optional and not
-# applied. Tests: make check passes as the sandbox root (checked: 390 tests
-# pass; the two tests LFS expects to fail are skipped here for lack of loop
-# devices and of ACLs for unmapped groups).
+# applied. Tests: make check works as the sandbox root (checked with a host
+# build run as uid 0 without capabilities in a single-uid namespace: 390
+# passed, 0 failed; the two tests LFS expects to fail skip themselves there,
+# for lack of loop devices and of ACLs for unmapped groups).
 [build]
 style = "gnu-configure"
 configure_args = ["--enable-elf-shlibs", "--disable-libblkid", "--disable-libuuid",
