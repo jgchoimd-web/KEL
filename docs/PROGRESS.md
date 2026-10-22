@@ -11,7 +11,7 @@
 | Phase 1. 부트스트랩 | **진행 중**: stage 1·2 완료·검증, stage 3a 빌드 중, stage 3b 레시피 작성 중 | 아래 Phase 1 표 |
 | Phase 2. 빌드 시스템과 패키지 관리 | 일부 선행 구현 | `kel` 패키지 빌드·apk 패키징·서명 색인·파일 충돌 검사 (단위 테스트로 확인) |
 | Phase 3. 첫 부팅 이미지 | 시작 전 | |
-| Phase 4. 엔터프라이즈 기능 | 시작 전 | |
+| Phase 4. 엔터프라이즈 기능 | 일부 선행 구현 | `kel sbom`: 패키지별 SPDX 3.0.1 SBOM(공식 검증기 통과, 재현 가능한 출력) |
 | Phase 5. 문서 | 시작 전 | |
 
 ### Phase 1 단계별 상태 (x86_64)
@@ -23,9 +23,9 @@
 | stage 1 크로스 툴체인 | **완료·검증** | binutils 1m17s, GCC pass 1 13m59s, 헤더 8s, glibc 4m29s, libstdc++ 1m06s (합계 약 21분) |
 | stage 2 임시 도구 | **완료·검증** | 레시피 17개 (LFS 13.1 6장). GCC pass 2 21분, 나머지 16개 합계 11분. `STAGE2 VERIFY OK` |
 | stage 3a 격리 환경 진입 (LFS 7장) | **완료·검증** | 10단계 약 20분: gettext 5m12s, python 5m47s, perl 3m06s, util-linux 2m38s, texinfo 2m01s. 호스트가 전혀 보이지 않는 루트에서 C 컴파일·실행, Python(zlib·decimal)·Perl 동작 확인. `STAGE3A VERIFY OK` |
-| stage 3b 최종 패키지 (LFS 8장) | 레시피 작성 중 | 77단계(`bootstrap/stage3b.toml`), 서브에이전트 5개가 나눠 작성 |
-| stage 4 셀프 호스팅 | 도구 작성 중 | KEL의 apk로 빌드 루트를 만들어 전체 재빌드하는 기능 (서브에이전트) |
-| stage 5 재현성 비교 | 도구 작성 중 | 두 저장소의 패키지를 풀어 비교하는 `kel compare` (서브에이전트) |
+| stage 3b 최종 패키지 (LFS 8장) | **빌드 중** | 77단계(`bootstrap/stage3b.toml`) 레시피 모두 작성·검토·커밋(서브에이전트 5개). filesystem, linux-headers, iana-etc 패키지 생성 확인 |
+| stage 4 셀프 호스팅 | 도구 준비됨 | `[stage] kind = "rebuild"`(DESIGN 5.4)와 `bootstrap/stage4.toml`. stage 3b 패키지로 읽기 전용 빌드 루트를 KEL의 apk로 만들고 77개를 다시 빌드해 `repo-stage4`에 넣은 뒤, 빈 루트에 전부 설치해 검증 |
+| stage 5 재현성 비교 | 도구 준비됨 | `kel compare A B`: 패키지별 파일·권한·내용·메타데이터 비교, ELF는 다른 섹션까지 표시. Markdown·JSON 보고서 |
 
 stage 1 검증 내용: 크로스 GCC로 만든 프로그램이 `/lib64/ld-linux-x86-64.so.2`를 요구하고, KEL sysroot의
 crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로더로 실행됨. `.comment`는
@@ -91,3 +91,9 @@ crt 파일과 `libc.so.6`에 링크되며, C++ 프로그램이 KEL의 glibc·로
   util-linux 자체 옵션 `--disable-makeinstall-chown`으로 해결했다(같은 내용을 레시피 지침에 추가).
 - `kel bootstrap --until <단계>`: 레시피가 아직 다 준비되지 않은 단계에서 앞부분만 먼저 빌드한다
   (검증은 건너뜀, 같은 단계 이름의 스탬프를 쓰므로 나중에 전체를 돌리면 이어서 진행).
+- 서브에이전트 결과 병합: stage 4 재빌드 실행기(`tools/kel/buildroot.py`, 테스트 19개), `kel sbom`과
+  `kel compare`(테스트 25개). 두 작업이 같은 함수(`bwrap_command`)를 고쳐 생긴 충돌은 직접 정리했다.
+  테스트는 모두 88개.
+- stage 4 에이전트가 찾은 문제: bubblewrap은 모든 capability를 버리므로 stage 3b 검증의 `chroot`가 실패한다.
+  sysroot 단계 검증에 `CAP_SYS_CHROOT`(샌드박스의 user namespace 안에서만 유효)를 준다.
+- 디스크 여유가 9GB까지 줄어 실패한 GCC pass 2 작업 디렉터리(4.9GB)와 끝난 조사용 파일을 지웠다(14GB 확보).
