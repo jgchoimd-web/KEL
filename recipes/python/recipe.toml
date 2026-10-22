@@ -54,7 +54,7 @@ import _sqlite3, _ssl, _uuid, _zstd, pyexpat, readline, zlib
 '
 '''
 test = '''
-make test TESTOPTS="--timeout 120 -j$KEL_JOBS"
+make test TESTOPTS="--timeout 120 -j$KEL_JOBS -u-network,-urlfetch"
 '''
 # make install would run "python -m ensurepip --upgrade --root=$DESTDIR/",
 # which installs nothing when the live root already has this pip (a rebuild
