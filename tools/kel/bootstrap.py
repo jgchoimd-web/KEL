@@ -23,6 +23,9 @@ from kel import __version__
 from kel.config import Arch, Layout
 from kel.fetch import fetch_recipe
 from kel.recipe import NAME_RE, PROFILE_RE, Recipe, load_recipe
+from kel.build import build_script
+from kel.pkg import (check_policy, ensure_dev_key, install_into_root, make_apk, make_index,
+                     resolve_dependencies, split_subpackages)
 from kel.sandbox import bwrap_command, bwrap_root_command, require_bwrap
 from kel.util import KelError, Timer, format_duration, log
 
@@ -33,6 +36,13 @@ SCRIPT_PRELUDE = "set +h\numask 022\nset -x\n"
 
 # Where the step's work directory appears inside a "sysroot" stage sandbox.
 INNER_WORKDIR = "/kel/build"
+
+# A step with this profile builds the recipe's [build] section as packages.
+PACKAGE_PROFILE = "package"
+
+# Flags for package builds during the bootstrap. Hardening flags become the
+# default in Phase 2 (DESIGN.md 4.5), with per-recipe opt-outs.
+BOOTSTRAP_CFLAGS = "-O2 -pipe"
 
 # "host": run on the host with a read-only view of it (stages 1-2, which use
 # host tools to build the cross toolchain). "sysroot": the sysroot becomes /
@@ -219,7 +229,8 @@ def _tail(path: Path, lines: int = 40) -> str:
 
 
 def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path,
-               env: dict[str, str], logfile: Path) -> None:
+               env: dict[str, str], logfile: Path,
+               ro_binds: list[tuple[Path, str]] = ()) -> None:
     """Run a step script in the sandbox; workdir/src (if any) is the start directory."""
     argv = ["/bin/bash", "-e", "-u", "-o", "pipefail", "-c", SCRIPT_PRELUDE + script]
     has_src = (workdir / "src").is_dir()
@@ -237,7 +248,7 @@ def run_script(layout: Layout, arch: Arch, root: str, script: str, workdir: Path
             env["KEL_SRCDIR"] = f"{INNER_WORKDIR}/src"
         cmd = bwrap_root_command(argv, root=layout.sysroot(arch),
                                  chdir=env.get("KEL_SRCDIR", INNER_WORKDIR), env=env,
-                                 binds=[(workdir, INNER_WORKDIR)])
+                                 binds=[(workdir, INNER_WORKDIR)], ro_binds=list(ro_binds))
     rc = _run_logged(cmd, logfile)
     if rc != 0:
         raise KelError(f"failed (exit {rc}); log: {logfile}\n{_tail(logfile)}")
@@ -253,7 +264,12 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
     for step in stage.steps:
         if step.recipe not in recipes:
             recipes[step.recipe] = load_recipe(layout.recipes, layout.upstream_keys, step.recipe)
-        if step.profile not in recipes[step.recipe].bootstrap:
+        if step.profile == PACKAGE_PROFILE:
+            if recipes[step.recipe].build is None:
+                raise KelError(f"{step.recipe} has no [build] section")
+            if stage.root != "sysroot":
+                raise KelError(f"package steps need a stage with root = \"sysroot\"")
+        elif step.profile not in recipes[step.recipe].bootstrap:
             raise KelError(f"{step.recipe} has no [bootstrap.{step.profile}] profile")
     if only and only not in {s.label for s in stage.steps}:
         raise KelError(f"stage {stage.name} has no step {only}")
@@ -287,8 +303,11 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
         log(f"[{n}/{len(stage.steps)}] {step.label} {recipe.version}: building (log: {logfile})")
         with Timer() as t:
             try:
-                run_script(layout, arch, stage.root, recipe.bootstrap[step.profile].script,
-                           workdir, env0, logfile)
+                if step.profile == PACKAGE_PROFILE:
+                    run_package_step(layout, arch, stage, recipe, workdir, env0, logfile)
+                else:
+                    run_script(layout, arch, stage.root, recipe.bootstrap[step.profile].script,
+                               workdir, env0, logfile)
             except KelError as e:
                 raise KelError(f"{step.label}: {e}")
         stamp.write_text(json.dumps({"key": key, "version": recipe.pkgver,
@@ -299,6 +318,46 @@ def run_stage(layout: Layout, arch: Arch, stage_name: str, *, jobs: int, force: 
 
     if stage.verify and not only:
         verify_stage(layout, arch, stage, env0)
+
+
+def run_package_step(layout: Layout, arch: Arch, stage: Stage, recipe: Recipe, workdir: Path,
+                     env0: dict[str, str], logfile: Path, run_check: bool = True) -> None:
+    """Build [build] into DESTDIR, package it, index it, and update the build root.
+
+    During the bootstrap the packages are created with the host-built apk
+    (stage host-tools) and their contents are copied over the build root, so
+    that later packages build against them (as in LFS chapter 8).
+    """
+    assert recipe.build is not None
+    apk = layout.host_tools(arch) / "bin" / "apk"
+    if not apk.exists():
+        raise KelError("no packaging tool: run `kel bootstrap host-tools` first")
+    destdir = workdir / "pkg"
+    destdir.mkdir()
+    env = dict(env0,
+               DESTDIR=f"{INNER_WORKDIR}/pkg",
+               KEL_PKGNAME=recipe.name,
+               KEL_PKGVER=recipe.pkgver,
+               KEL_RECIPEDIR="/kel/recipe",
+               KEL_STRIP="1" if recipe.build.strip else "0",
+               KEL_KEEP_LA="1" if recipe.build.keep_la else "0",
+               CFLAGS=BOOTSTRAP_CFLAGS,
+               CXXFLAGS=BOOTSTRAP_CFLAGS)
+    run_script(layout, arch, stage.root, build_script(recipe, run_check), workdir, env, logfile,
+               ro_binds=[(recipe.path.parent, "/kel/recipe")])
+    parts = split_subpackages(recipe, destdir, workdir)
+    problems = resolve_dependencies(parts)
+    for part in parts:
+        problems += check_policy(part)
+    if problems:
+        raise KelError("packaging policy violations:\n  " + "\n  ".join(problems))
+    key, pub = ensure_dev_key(layout.keys())
+    repo = layout.repository(arch)
+    for part in parts:
+        out = make_apk(apk, part, recipe, arch.name, repo, key, SOURCE_DATE_EPOCH)
+        log(f"package: {out.name} depends=[{' '.join(part.depends)}]")
+    make_index(apk, repo, key, pub, f"KEL bootstrap ({stage.name})")
+    install_into_root(parts, layout.sysroot(arch))
 
 
 def verify_stage(layout: Layout, arch: Arch, stage: Stage, env: dict[str, str]) -> None:

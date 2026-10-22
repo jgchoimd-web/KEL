@@ -29,9 +29,18 @@ SPDX_TOKEN_RE = re.compile(r"\(|\)|[A-Za-z0-9][A-Za-z0-9.+-]*(?::[A-Za-z0-9.+-]+
 SIGNATURE_TYPES = ("detached", "detached-uncompressed")
 
 TOP_LEVEL_KEYS = {"schema", "package", "source", "bootstrap", "build", "subpackages"}
-PACKAGE_KEYS = {"name", "version", "revision", "summary", "license", "homepage"}
+PACKAGE_KEYS = {"name", "version", "revision", "summary", "license", "homepage",
+                "depends", "provides", "replaces"}
 SOURCE_KEYS = {"url", "sha256", "filename", "signature", "signature_type", "signing_keys", "dest"}
 PROFILE_KEYS = {"script"}
+BUILD_STYLES = ("gnu-configure", "meson", "cmake", "make", "custom")
+BUILD_PHASES = ("prepare", "configure", "compile", "test", "install", "post_install")
+BUILD_KEYS = {"style", "depends", "configure_args", "make_args", "check", "out_of_tree",
+              "strip", "keep_la", *BUILD_PHASES}
+SUBPACKAGE_KEYS = {"summary", "files", "depends"}
+SUFFIX_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# apk dependency: name, optionally with an operator and version (no spaces).
+DEPEND_RE = re.compile(r"^!?[A-Za-z0-9][A-Za-z0-9.+_:/,\[\]-]*((<|>|=|~|<=|>=|><|=~)[0-9A-Za-z._~+-]+)?$")
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,28 @@ class Profile:
 
 
 @dataclass(frozen=True)
+class BuildSpec:
+    style: str
+    depends: tuple[str, ...] = ()
+    configure_args: tuple[str, ...] = ()
+    make_args: tuple[str, ...] = ()
+    check: bool = True
+    out_of_tree: bool = True
+    strip: bool = True
+    keep_la: bool = False
+    # Shell snippets replacing the style's default for a phase.
+    phases: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Subpackage:
+    suffix: str
+    summary: str
+    files: tuple[str, ...]
+    depends: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Recipe:
     name: str
     version: str
@@ -65,6 +96,11 @@ class Recipe:
     bootstrap: dict[str, Profile] = field(default_factory=dict)
     path: Path = Path()
     digest: str = ""
+    depends: tuple[str, ...] = ()
+    provides: tuple[str, ...] = ()
+    replaces: tuple[str, ...] = ()
+    build: BuildSpec | None = None
+    subpackages: tuple[Subpackage, ...] = ()
 
     @property
     def pkgver(self) -> str:
@@ -84,6 +120,72 @@ def _check_keys(where: str, table: dict, allowed: set[str]) -> None:
     unknown = sorted(set(table) - allowed)
     if unknown:
         raise _fail(where, f"unknown key(s): {', '.join(unknown)}")
+
+
+def _str_list(where: str, table: dict, key: str, pattern: re.Pattern | None = None) -> tuple[str, ...]:
+    value = table.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
+        raise _fail(where, f"'{key}' must be a list of non-empty strings")
+    if pattern is not None:
+        for v in value:
+            if not pattern.match(v):
+                raise _fail(where, f"bad {key} entry {v!r}")
+    return tuple(value)
+
+
+def _bool(where: str, table: dict, key: str, default: bool) -> bool:
+    value = table.get(key, default)
+    if not isinstance(value, bool):
+        raise _fail(where, f"'{key}' must be true or false")
+    return value
+
+
+def _parse_build(where: str, raw: dict) -> BuildSpec:
+    if not isinstance(raw, dict):
+        raise _fail(where, "must be a table")
+    _check_keys(where, raw, BUILD_KEYS)
+    style = raw.get("style")
+    if style not in BUILD_STYLES:
+        raise _fail(where, f"style must be one of {', '.join(BUILD_STYLES)}")
+    phases = {}
+    for phase in BUILD_PHASES:
+        if phase in raw:
+            phases[phase] = _require_str(where, raw, phase)
+    if style == "custom" and "install" not in phases:
+        raise _fail(where, "a custom build needs at least an 'install' phase")
+    return BuildSpec(
+        style=style,
+        depends=_str_list(where, raw, "depends", DEPEND_RE),
+        configure_args=_str_list(where, raw, "configure_args"),
+        make_args=_str_list(where, raw, "make_args"),
+        check=_bool(where, raw, "check", True),
+        out_of_tree=_bool(where, raw, "out_of_tree", True),
+        strip=_bool(where, raw, "strip", True),
+        keep_la=_bool(where, raw, "keep_la", False),
+        phases=phases,
+    )
+
+
+def _parse_subpackages(where: str, raw: dict) -> tuple[Subpackage, ...]:
+    if not isinstance(raw, dict):
+        raise _fail(where, "[subpackages] must be a table")
+    subs = []
+    for suffix, table in raw.items():
+        sw = f"{where}: [subpackages.{suffix}]"
+        if not SUFFIX_RE.match(suffix):
+            raise _fail(sw, "bad subpackage suffix")
+        if not isinstance(table, dict):
+            raise _fail(sw, "must be a table")
+        _check_keys(sw, table, SUBPACKAGE_KEYS)
+        files = _str_list(sw, table, "files")
+        if not files:
+            raise _fail(sw, "'files' must not be empty")
+        for f in files:
+            if f.startswith("/") or ".." in PurePosixPath(f).parts:
+                raise _fail(sw, f"file pattern {f!r} must be relative to the package root")
+        subs.append(Subpackage(suffix=suffix, summary=table.get("summary", ""),
+                               files=files, depends=_str_list(sw, table, "depends", DEPEND_RE)))
+    return tuple(subs)
 
 
 def _require_str(where: str, table: dict, key: str) -> str:
@@ -220,6 +322,9 @@ def parse_recipe(path: Path, keydir: Path) -> Recipe:
         raise _fail(pw, f"license {license_expr!r} is not a valid SPDX expression")
     summary = _require_str(pw, pkg, "summary")
     homepage = _require_str(pw, pkg, "homepage")
+    depends = _str_list(pw, pkg, "depends", DEPEND_RE)
+    provides = _str_list(pw, pkg, "provides", DEPEND_RE)
+    replaces = _str_list(pw, pkg, "replaces", DEPEND_RE)
 
     # KEL's own packages (base filesystem, os-release, ...) have no upstream
     # source; their files live in recipes/<name>/files/.
@@ -248,6 +353,11 @@ def parse_recipe(path: Path, keydir: Path) -> Recipe:
         _check_keys(bw, raw, PROFILE_KEYS)
         profiles[pname] = Profile(name=pname, script=_require_str(bw, raw, "script"))
 
+    build = _parse_build(f"{where}: [build]", data["build"]) if "build" in data else None
+    subpackages = _parse_subpackages(where, data.get("subpackages", {}))
+    if subpackages and build is None:
+        raise _fail(where, "[subpackages] needs a [build] section")
+
     return Recipe(
         name=name,
         version=version,
@@ -259,6 +369,11 @@ def parse_recipe(path: Path, keydir: Path) -> Recipe:
         bootstrap=profiles,
         path=path,
         digest=recipe_digest(path.parent),
+        depends=depends,
+        provides=provides,
+        replaces=replaces,
+        build=build,
+        subpackages=subpackages,
     )
 
 

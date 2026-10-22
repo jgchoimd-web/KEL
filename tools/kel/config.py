@@ -82,6 +82,14 @@ class Layout:
         # Bootstrap-only tools built for the host (e.g. apk for packaging).
         return self.arch_root(arch) / "host-tools"
 
+    def repository(self, arch: Arch) -> Path:
+        # apk layout: <base>/<arch>/Packages.adb and <base>/<arch>/*.apk
+        return self.arch_root(arch) / "repo" / arch.name
+
+    def keys(self) -> Path:
+        # Development signing key (never committed, never published).
+        return self.workdir / "keys"
+
     def builds(self, arch: Arch) -> Path:
         return self.arch_root(arch) / "build"
 
