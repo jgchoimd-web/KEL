@@ -18,7 +18,18 @@ signing_keys = ["AE27252BD6846E7D6EAE1DD6F153A7C833235259"]  # Mark Nudelman
 # --sysconfdir=/etc is one of kel's default arguments. Since 710 there is no
 # lesskey program (lesskey(5) documents the key file format), and lessecho
 # and less-osc8-open are installed into /usr/libexec (upstream's default
-# libexecdir, compiled into less). The test suite (lesstest) uses perl.
+# libexecdir, compiled into less). The test suite (lesstest) uses perl;
+# two of its cases (chinese1, utf8-2.txt) set LC_CTYPE=en_US.UTF-8 and fail
+# unless that locale is installed in the build root (LFS has it from
+# glibc's locale step), so without it the results are only reported.
 [build]
 style = "gnu-configure"
 depends = ["ncurses", "perl"]
+test = '''
+cd build
+if grep -qx 'en_US\.utf8' <<< "$(locale -a 2>/dev/null)"; then
+    make check
+else
+    make check || echo "less: test failures ignored (no en_US.UTF-8 locale)"
+fi
+'''
