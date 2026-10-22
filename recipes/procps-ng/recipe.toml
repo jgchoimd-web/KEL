@@ -1,0 +1,25 @@
+[package]
+name = "procps-ng"
+version = "4.0.7"
+revision = 0
+summary = "Process and system information utilities (ps, top, free, uptime, ...) and libproc2"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://gitlab.com/procps-ng/procps"
+
+[[source]]
+url = "https://downloads.sourceforge.net/project/procps-ng/Production/procps-ng-4.0.7.tar.xz"
+sha256 = "9d2021f47a4501c667862c9942a92d1953694b21d11bcd1702e83eb594e3d67d"
+signature = "https://downloads.sourceforge.net/project/procps-ng/Production/procps-ng-4.0.7.tar.xz.asc"
+signing_keys = ["5D2FB320B825D93904D205193938F96BDF50FEA5"]  # Craig Small
+
+# Package. Based on LFS 13.1 chapter 8.80 without the docdir version: kill is
+# left to util-linux, watch uses ncursesw, w and friends use libsystemd
+# (systemd is built just before). Built in the source tree: installing the
+# translated man pages fails in an out-of-tree build (checked). No tests: LFS
+# runs them as the unprivileged `tester` user, which the sandbox does not have.
+[build]
+style = "gnu-configure"
+out_of_tree = false
+configure_args = ["--disable-static", "--disable-kill", "--enable-watch8bit", "--with-systemd"]
+check = false
+depends = ["ncurses", "systemd", "pkgconf"]

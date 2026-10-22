@@ -30,3 +30,17 @@ meson setup build \
 meson compile -C build
 meson install -C build
 '''
+
+# Package: KEL's own apk (D-002), which replaces the host-built tool once the
+# base system exists. Not in LFS. Upstream's meson build with the OpenSSL
+# crypto backend and zstd support pinned on, man pages built with scdoc
+# (built earlier in stage 3b). Not built: the built-in help text (needs Lua at
+# build time), the Lua and Python bindings, and the tests (the unit tests need
+# cmocka, which KEL does not build).
+[build]
+style = "meson"
+configure_args = ["-Dcrypto_backend=openssl", "-Dzstd=enabled", "-Ddocs=enabled",
+                  "-Dhelp=disabled", "-Dlua=disabled", "-Dpython=disabled",
+                  "-Dtests=disabled"]
+check = false
+depends = ["meson", "ninja", "pkgconf", "openssl", "zlib", "zstd", "scdoc", "linux-headers"]

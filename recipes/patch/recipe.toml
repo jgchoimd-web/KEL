@@ -22,3 +22,10 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.71. LFS runs the tests as root (the
+# tests that need write-protected files to stay unwritable detect that
+# themselves).
+[build]
+style = "gnu-configure"
+depends = ["attr"]

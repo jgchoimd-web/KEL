@@ -23,3 +23,7 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.62. LFS runs the tests as root.
+[build]
+style = "gnu-configure"

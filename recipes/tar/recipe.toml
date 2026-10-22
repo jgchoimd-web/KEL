@@ -22,3 +22,15 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.72. patches/ holds LFS's
+# tar-1.35-acl_fix-1.patch (a backport of Pavel Cahyna's fix proposed upstream
+# for building with acl-2.4.0), applied by kel. FORCE_UNSAFE_CONFIGURE=1 (as
+# in LFS) lets configure run as uid 0; configure exports VAR=value arguments.
+# LFS runs the tests as root; tests that need real root privileges detect the
+# missing capabilities and are skipped (this includes the one LFS expects to
+# fail). The optional HTML manual is not installed.
+[build]
+style = "gnu-configure"
+configure_args = ["FORCE_UNSAFE_CONFIGURE=1"]
+depends = ["acl", "attr"]

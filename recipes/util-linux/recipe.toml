@@ -37,3 +37,31 @@ mkdir -pv /var/lib/hwclock
 make
 make install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.81 with KEL's paths: programs in
+# /usr/bin (kel passes --sbindir=/usr/bin; util-linux still installs some
+# programs into /usr/sbin, which kel merges into /usr/bin), --bindir and
+# --libdir as in LFS so nothing goes to /bin or /lib, no --docdir version.
+# The same --disable list as LFS (login, su, nologin and chfn/chsh are
+# shadow's; setpriv needs libcap-ng and runuser PAM; no Python bindings, no
+# lastlog2). util-linux provides kill, fsck, uuidd, libblkid, libuuid and
+# libmount. --disable-makeinstall-chown:
+# make install would chgrp wall to tty, which fails in the sandbox; KEL ships
+# all files root-owned (mount and umount are still made setuid root; wall is
+# not setgid tty, which can be set at install time later). hwclock keeps its
+# state in /var/lib/hwclock (ADJTIME_PATH, as in LFS), shipped as an empty
+# directory. No tests: LFS runs them as the unprivileged `tester` user.
+[build]
+style = "gnu-configure"
+configure_args = ["--bindir=/usr/bin", "--libdir=/usr/lib", "--runstatedir=/run",
+                  "--disable-chfn-chsh", "--disable-login", "--disable-nologin",
+                  "--disable-su", "--disable-setpriv", "--disable-runuser",
+                  "--disable-pylibmount", "--disable-liblastlog2", "--disable-static",
+                  "--without-python", "--disable-makeinstall-chown",
+                  "ADJTIME_PATH=/var/lib/hwclock/adjtime"]
+check = false
+depends = ["pkgconf", "ncurses", "readline", "file", "libxcrypt", "systemd", "gettext",
+           "linux-headers"]
+post_install = '''
+install -d -m755 "$DESTDIR"/var/lib/hwclock
+'''

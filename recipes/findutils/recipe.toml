@@ -23,3 +23,11 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.63: the locate database lives in
+# /var/lib/locate (make install creates the empty directory). No tests: LFS
+# runs them as the unprivileged `tester` user, which the sandbox does not have.
+[build]
+style = "gnu-configure"
+configure_args = ["--localstatedir=/var/lib/locate"]
+check = false

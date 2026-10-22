@@ -19,3 +19,13 @@ script = '''
 make
 make install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.73 (7.3 needs no source fixes). The
+# optional TeX files (make install-tex) are not installed: KEL has no TeX.
+# The info directory file is an install-time job (kel removes the one make
+# install writes). texi2any's XS modules load without their .la files: they
+# have a RUNPATH to /usr/lib/texi2any/lib and Texinfo's loader falls back to
+# loading the modules directly (checked with TEXINFO_XS=required).
+[build]
+style = "gnu-configure"
+depends = ["perl", "ncurses"]

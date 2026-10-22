@@ -1,0 +1,35 @@
+[package]
+name = "iproute2"
+version = "7.3.0"
+revision = 0
+summary = "Linux networking utilities (ip, ss, tc, bridge, ...)"
+license = "GPL-2.0-only"
+homepage = "https://wiki.linuxfoundation.org/networking/iproute2"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://www.kernel.org/pub/linux/utils/net/iproute2/iproute2-7.3.0.tar.xz"
+sha256 = "5c1789d290bba048a6135ed1ab81b0402dd0fb528d1f1421765c42b1fc3d6289"
+signature = "https://www.kernel.org/pub/linux/utils/net/iproute2/iproute2-7.3.0.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["9F6FC345B05BE7E766B83C8F80A77F6095CDE47E"]  # Stephen Hemminger
+
+# Package. Based on LFS 13.1 chapter 8.67 (written for 7.1.0): arpd is not
+# built (it needs Berkeley DB), so LFS's commands drop its define and man
+# page. make runs iproute2's own configure, whose defaults already fit KEL
+# (LIBDIR /usr/lib for the tc distribution tables, configuration in
+# /usr/share/iproute2 with /etc/iproute2 for local changes). Passed to both
+# make and make install: SBINDIR=/usr/bin (KEL: sbin is merged; LFS uses
+# /usr/sbin) and NETNS_RUN_DIR=/run/netns (as in LFS; the default is
+# /var/run/netns), which also goes into the man pages. The optional copy of
+# README/COPYING to a versioned docdir is dropped (kel installs COPYING as the
+# license). No tests: LFS notes there is no working test suite.
+[build]
+style = "make"
+make_args = ["SBINDIR=/usr/bin", "NETNS_RUN_DIR=/run/netns"]
+check = false
+depends = ["bison", "flex", "pkgconf", "libcap", "elfutils", "linux-headers"]
+prepare = '''
+sed -i /ARPD/d Makefile
+rm -fv man/man8/arpd.8
+'''

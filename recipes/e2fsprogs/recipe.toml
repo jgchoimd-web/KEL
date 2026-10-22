@@ -1,0 +1,41 @@
+[package]
+name = "e2fsprogs"
+version = "1.47.4"
+revision = 0
+summary = "ext2/ext3/ext4 file system utilities (mke2fs, e2fsck, tune2fs, ...)"
+license = "GPL-2.0-only AND LGPL-2.0-only AND MIT AND BSD-3-Clause"
+homepage = "https://e2fsprogs.sourceforge.net/"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.4/e2fsprogs-1.47.4.tar.xz"
+sha256 = "fd5bf388cbdbe006a3d3b318d983b2948382440acc85a87f1e7d108653e8db0b"
+signature = "https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.4/e2fsprogs-1.47.4.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["3AB057B7E78D945C8C5591FBD36F769BC11804F0"]  # Theodore Ts'o
+
+# Package. Based on LFS 13.1 chapter 8.82 (built in ./build, as there):
+# libblkid, libuuid, uuidd and fsck come from util-linux. Pinned instead of
+# probed from the build root: systemd unit and udev rules directories, and no
+# cron file (e2scrub runs from its systemd timer; configure would install
+# /etc/cron.d/e2scrub_all whenever /etc/cron.d exists). After make install,
+# as in LFS: remove the static libraries, unpack libext2fs.info and add the
+# optional com_err.info; LFS's install-info into the system dir file is left
+# to install time. The mke2fs.conf tweak LFS suggests is optional and not
+# applied. Tests: make check passes as the sandbox root (checked: 390 tests
+# pass; the two tests LFS expects to fail are skipped here for lack of loop
+# devices and of ACLs for unmapped groups).
+[build]
+style = "gnu-configure"
+configure_args = ["--enable-elf-shlibs", "--disable-libblkid", "--disable-libuuid",
+                  "--disable-uuidd", "--disable-fsck", "--without-crond-dir",
+                  "--with-systemd-unit-dir=/usr/lib/systemd/system",
+                  "--with-udev-rules-dir=/usr/lib/udev/rules.d"]
+depends = ["util-linux", "texinfo", "pkgconf", "gettext", "file"]
+post_install = '''
+rm -fv "$DESTDIR"/usr/lib/{libcom_err,libe2p,libext2fs,libss}.a
+gunzip -v "$DESTDIR"/usr/share/info/libext2fs.info.gz
+cd build
+makeinfo -o doc/com_err.info ../lib/et/com_err.texinfo
+install -v -m644 doc/com_err.info "$DESTDIR"/usr/share/info
+'''

@@ -1,0 +1,82 @@
+[package]
+name = "systemd"
+version = "262.1"
+revision = 0
+summary = "System and service manager (init), udev, journald, logind and related tools"
+license = "LGPL-2.1-or-later AND GPL-2.0-or-later AND MIT AND MIT-0 AND CC0-1.0 AND BSD-2-Clause"
+homepage = "https://systemd.io/"
+# systemd 262 dlopen()s its optional libraries instead of linking them, so
+# kel's ELF scan cannot see them: the ones enabled below (libmount, libblkid
+# and libfdisk from util-linux, libkmod, libacl, libcrypt, libcrypto, the
+# compression libraries and pcre2). PID 1 also runs mount, swapon, agetty and
+# sulogin from util-linux.
+depends = ["acl", "bzip2", "kmod", "libxcrypt", "lz4", "openssl", "pcre2", "util-linux",
+           "xz", "zlib", "zstd"]
+
+# Upstream publishes no release tarball or signature; GitHub serves a
+# `git archive` of the tag. The file was recreated as
+# `git archive --prefix=systemd-262.1/ v262.1 | gzip -cn` from
+# https://github.com/systemd/systemd.git (this reproduces GitHub's tarballs
+# byte for byte). The tag v262.1 (commit
+# 73612ea502d53baf9b0df4336cfc296a7ee0d524) has a valid signature by Luca
+# Boccassi (primary key A9EA9081724FFAE0484C35A1A81CEA22BC8C7E2E, signing
+# subkey AC24AAC7DDC420F18ECA6B91286BF7EFCD77241E); checked 2026-10-22.
+[[source]]
+url = "https://github.com/systemd/systemd/archive/v262.1/systemd-262.1.tar.gz"
+sha256 = "100fc873b848b9b0297d8a705e8e2ed326256c8483d9960ee1ffe264c8a5c3e3"
+
+# Package. Based on LFS 13.1 chapter 8.77 (written for 261.2), with LFS's
+# meson options except:
+# - sysusers=true: KEL creates all users and groups with sysusers.d when
+#   packages are installed (DESIGN 4.3).
+# - The udev rules are not changed (LFS maps the render and sgx groups to
+#   video): systemd's sysusers.d/basic.conf creates render and sgx.
+# - No --docdir version (the default is /usr/share/doc/systemd).
+# - bootloader=disabled for now (systemd-boot comes in Phase 3, D-008);
+#   split-bin=false states KEL's merged sbin instead of probing /usr/sbin.
+# - No tests, and tests=false so they are not even built: they need a booted
+#   systemd, cgroups and a writable /sys, which the build sandbox lacks (LFS
+#   runs them in its chroot with unshare -m).
+# - No man pages (man=disabled, LFS's prebuilt man page tarball is not used),
+#   no systemd-machine-id-setup and no systemctl preset-all: install-time
+#   steps (Phase 3).
+# - Every optional library is pinned so the result does not depend on what
+#   else is in the build root: on for the libraries KEL builds before systemd
+#   in stage 3b, off for the others (PAM, SELinux, seccomp, cryptsetup, TPM2,
+#   curl, ... are revisited when KEL packages them; elfutils is off because
+#   KEL builds only libelf, while systemd needs libdw too).
+# meson installs nothing under /run, /var/run or /tmp (checked in 262.1's
+# meson files); /var/log/journal is shipped empty (persistent journal), its
+# group and ACLs are applied by tmpfiles at boot. The license texts that
+# systemd puts in its docdir are also copied to the licenses directory.
+[build]
+style = "meson"
+configure_args = [
+    # LFS 13.1
+    "-Ddefault-dnssec=no", "-Dfirstboot=false", "-Dinstall-tests=false", "-Dldconfig=false",
+    "-Drpmmacrosdir=no", "-Dhomed=disabled", "-Dman=disabled", "-Dmode=release",
+    "-Dpamconfdir=no", "-Ddev-kvm-mode=0660", "-Dnobody-group=nogroup",
+    "-Dsysupdate=disabled", "-Dukify=disabled",
+    # KEL
+    "-Dsysusers=true", "-Dsplit-bin=false", "-Dbootloader=disabled", "-Dtests=false",
+    # optional libraries built before systemd in stage 3b
+    "-Dacl=enabled", "-Dblkid=enabled", "-Dfdisk=enabled", "-Dkmod=enabled",
+    "-Dlibcrypt=enabled", "-Dlibmount=enabled", "-Dopenssl=enabled", "-Dpcre2=enabled",
+    "-Dzlib=enabled", "-Dbzip2=enabled", "-Dxz=enabled", "-Dlz4=enabled", "-Dzstd=enabled",
+    # optional libraries KEL does not build (yet)
+    "-Dapparmor=disabled", "-Daudit=disabled", "-Dbpf-framework=disabled",
+    "-Delfutils=disabled", "-Dgcrypt=disabled", "-Dgnutls=disabled",
+    "-Dlibarchive=disabled", "-Dlibcryptsetup=disabled", "-Dlibcurl=disabled",
+    "-Dlibfido2=disabled", "-Dlibidn2=disabled", "-Dmicrohttpd=disabled",
+    "-Dp11kit=disabled", "-Dpam=disabled", "-Dpasswdqc=disabled", "-Dpwquality=disabled",
+    "-Dqrencode=disabled", "-Dseccomp=disabled", "-Dselinux=disabled", "-Dtpm2=disabled",
+    "-Dxenctrl=disabled", "-Dxkbcommon=disabled",
+]
+check = false
+depends = ["meson", "ninja", "pkgconf", "gperf", "python", "jinja2", "markupsafe",
+           "util-linux", "kmod", "libxcrypt", "acl", "openssl", "zlib", "bzip2", "xz", "lz4",
+           "zstd", "pcre2", "gettext", "linux-headers"]
+post_install = '''
+install -d "$DESTDIR"/usr/share/licenses/systemd
+install -m644 LICENSE.GPL2 LICENSE.LGPL2.1 LICENSES/* "$DESTDIR"/usr/share/licenses/systemd/
+'''

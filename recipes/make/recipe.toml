@@ -22,3 +22,9 @@ script = '''
 make
 make DESTDIR="$KEL_SYSROOT" install
 '''
+
+# Package. Based on LFS 13.1 chapter 8.70. No tests: LFS runs them as the
+# unprivileged `tester` user, which the sandbox does not have.
+[build]
+style = "gnu-configure"
+check = false
