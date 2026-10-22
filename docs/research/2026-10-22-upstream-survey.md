@@ -449,3 +449,82 @@ DESIGN.md 추천안의 근거가 되는 사실을 출처와 함께 남긴다. �
 <https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases>,
 <https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/>,
 <https://github.com/actions/runner-images/issues/14062>
+
+---
+
+## 5. 패키지 매니저, 서명 도구, 빌드 시스템
+
+### 5.1 apk-tools v3 현황
+
+- **3.0.0 태그 2025-12-01**, 최신 3.0.8 (2026-08-31). 2.14 브랜치도 계속 유지(2.14.12, 2026-09-16).
+- **Alpine**: 3.23.0(2025-12-03)부터 v3 도구를 쓰지만 "당분간 v2 색인·패키지 형식 유지".
+  3.24/edge 미러는 여전히 v2 `APKINDEX.tar.gz`(RSA-4096, `.SIGN.RSA` = SHA-1 다이제스트에 RSA).
+- **Chimera**: v3 도구 + **v3 형식**(ADB 색인 `Packages.adb`), cbuild가 `apk mkpkg`/`apk mkndx` 사용.
+- **OpenWrt 25.12** (2026-03-05): opkg를 apk로 교체, v3 형식, **ECDSA P-256** 서명, mbedTLS로 빌드.
+- **Wolfi**: apk-tools 2.14.10, v2 형식(RSA-4096 `.SIGN.RSA256`). melange도 v2 패키지 생성.
+- postmarketOS는 2026-09-27 Nura로 이름 변경, Alpine 기반 유지.
+- apk 3: GPL-2.0-only, C. 빌드 의존성 zlib + OpenSSL 또는 mbedTLS + 선택 zstd,
+  meson 또는 **muon(Python 불필요)**으로 빌드.
+- v3 서명: 메타데이터 트리의 SHA-512 다이제스트에 서명 하나, OpenSSL PEM 키(RSA/ECDSA).
+- 롤백 기능 문서 없음, 디렉터리 glob 트리거와 commit 전후 훅 있음, 파일 충돌은 `replaces` 없으면 오류.
+- 약점: v3 형식 문서가 얇고 "C 구조체 배치에 얽혀" 있음, libapk API가 v3에서 깨짐,
+  저장소 메타데이터 유효기간(freeze/replay 방지) 없음.
+
+### 5.2 패키지 매니저 비교
+
+| | apk 3 | pacman 7 | RPM 6 + dnf5/tdnf | dpkg + apt 3 | xbps | opkg |
+|---|---|---|---|---|---|---|
+| 최신 | 3.0.8 | 7.1.0 | rpm 6.1.0 (2026-08-20), dnf5 5.4.6.0, tdnf 3.6.5 | apt 3.3.4, dpkg 1.23.11 | 0.60.7 | 0.10.0 |
+| 언어 | C | C | rpm C++20, dnf5 C++, tdnf C | apt C++, dpkg C | C99 | C |
+| 빌드 의존성 | zlib, OpenSSL/mbedTLS, (zstd) | libarchive, curl, gpgme, OpenSSL/nettle | CMake, popt, Lua, libarchive, sqlite, libmagic, debugedit, **rpm-sequoia(Rust) 없으면 서명·검증 불가** | apt: OpenSSL, db, lz4/xz/zstd, xxhash, seccomp, systemd, **sqv(Rust)** | zlib, OpenSSL, libarchive | CMake, curl, libsolv, gpgme |
+| 서명 | v3: 메타데이터 트리 서명 | 패키지와 DB에 OpenPGP 분리 서명, 7.1부터 기본 필수 | 헤더에 OpenPGP, v6에서 패키지당 여러 서명 | InRelease 서명 + 해시 체인(.deb 자체는 무서명), `Valid-Until` | 패키지별 RSA, **색인 무서명** | 색인·패키지 서명 **기본 꺼짐** |
+| 롤백 | 없음 | 없음 | dnf5 history undo/rollback | 없음 | 상태 기반 재개 | 없음 |
+| 외부 채택 | Chimera, OpenWrt, Wolfi(v2), Nura | MSYS2 | Photon(tdnf), Azure Linux 4.0 프리뷰(dnf5 + rpm 6.0.1) | Debian 파생 | — | Yocto 기본 |
+
+- **RPM 6.0 (2025-09-22)**: 서명 검사 기본 강제(`%_pkgverify_level all`), v6 형식 기본(SHA-3-256,
+  MD5/SHA-1 제거), 패키지당 여러 서명, OpenPGP v6/PQC 키. **RPM 6.1**: PKCS#11 토큰 서명.
+- **apt 3**: GnuPG 대신 sqv, 2030-02부터 RSA-2048 키 거부 정책.
+
+### 5.3 서명 도구
+
+| 도구 | 최신 | 특징 | 사용처 |
+|---|---|---|---|
+| GnuPG | 2.5.24 (2026-09-23), 2.4는 2026-06-30 EOL | OpenPGP | pacman, rpmsign 기본, tdnf, opkg |
+| Sequoia sq/sqv | sq 1.5.0 (2026-10-07) | OpenPGP, Rust, 알고리즘 폐기 날짜 정책 | rpm 검증, apt |
+| minisign | 0.12 | Ed25519, 신뢰 코멘트 | 패키지 매니저 사용처 확인 못 함 |
+| signify | portable v33 | Ed25519, 다음 릴리스 키를 현재 서명된 릴리스에 넣는 방식 | OpenBSD 릴리스·pkg_add |
+| Sigstore cosign | 3.1.4 | OIDC 기반 무키 서명 + 투명성 로그 | 주요 배포판 패키지 서명엔 미채택(2024-10 기준) |
+| TUF | 명세 1.0.37 | root/targets/snapshot/timestamp 역할, 만료, freeze·rollback 공격 방어 | Bottlerocket, PyPI, Sigstore. **범용 배포판 패키지 매니저는 없음** |
+
+- apk 저장소 키: Alpine RSA-4096(SHA-1 서명), Wolfi RSA-4096(SHA-256), Chimera RSA-2048(아키텍처별),
+  OpenWrt ECDSA P-256.
+- 조사한 기본 방식 중 저장소 메타데이터 신선도 검사를 문서화한 것은 apt(`Valid-Until`)뿐.
+
+### 5.4 빌드 시스템과 격리
+
+| 도구 | 레시피 | 언어 | 격리 | root 없이 | 크로스 | SBOM/재현성 | 라이선스 |
+|---|---|---|---|---|---|---|---|
+| abuild 3.17.0 | APKBUILD(sh) | sh | `rootbld`: bwrap | 예 | CHOST/CTARGET | — | GPL-2.0 |
+| makepkg + devtools | PKGBUILD(bash) | bash | systemd-nspawn clean chroot | **아니오**(sudo) | 확인 못 함 | SOURCE_DATE_EPOCH 전달 | GPL |
+| xbps-src | bash 템플릿 | bash | user namespace(기본) 또는 bwrap | 예, **root 실행 거부** | `-a` | — | BSD-2 |
+| **cbuild** (Chimera) | template.py | **Python 3.12+** | **bwrap `--unshare-all`**, 읽기 전용 루트, 소스 받은 뒤 네트워크 없음 | 예, **root 실행 거부** | `-a ARCH` | 부트스트랩부터 다시 만든 bldroot가 동일 | BSD-2 |
+| melange 0.63.1 | YAML | Go | bubblewrap(기본)/docker/qemu | 예 | 크로스 대신 QEMU | **패키지마다 SPDX SBOM** | Apache-2.0 |
+| Portage | ebuild | Python+bash | LD_PRELOAD sandbox + namespace | 부분적 | crossdev | — | GPL-2.0 |
+| BitBake (Yocto 6.0 LTS, 2030-04까지) | .bb | Python | user/network namespace + Landlock | **root 금지** | 크로스 중심 | SPDX 기본 | GPL-2.0 |
+| Buildroot 2026.08 | Kconfig+make | make | 없음 | 예 | 크로스 중심 | CycloneDX 스크립트 | GPL-2.0+ |
+
+- **bubblewrap 0.13.1** (2026-10-14). **0.12.0(2026-08-26)에서 setuid 지원을 없애고 LGPL-2.1+로
+  재라이선스** → 비특권 user namespace가 필수. Flatpak, abuild, cbuild, melange, xbps-src가 사용.
+
+출처: <https://github.com/alpinelinux/apk-tools>, <https://alpinelinux.org/posts/Alpine-3.23.0-released.html>,
+<https://chimera-linux.org/docs/apk>, <https://openwrt.org/releases/25.12/notes-25.12.0>,
+<https://github.com/wolfi-dev/os/blob/main/apk-tools.yaml>, <https://rpm.org/releases/6.0.0>,
+<https://rpm.org/releases/6.1.0>, <https://github.com/rpm-software-management/rpm>,
+<https://github.com/rpm-software-management/dnf5>, <https://github.com/vmware/tdnf>,
+<https://learn.microsoft.com/en-us/azure/azure-linux/whats-new-azure-linux-4>,
+<https://gitlab.archlinux.org/pacman/pacman>, <https://salsa.debian.org/apt-team/apt>,
+<https://github.com/void-linux/xbps>, <https://gnupg.org/download/index.html>,
+<https://theupdateframework.github.io/specification/latest/>, <https://theupdateframework.io/adoptions/>,
+<https://github.com/alpinelinux/abuild>, <https://raw.githubusercontent.com/chimera-linux/cports/master/Usage.md>,
+<https://github.com/chainguard-dev/melange>, <https://wiki.yoctoproject.org/wiki/Releases>,
+<https://github.com/containers/bubblewrap>

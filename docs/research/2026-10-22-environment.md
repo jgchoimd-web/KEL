@@ -70,7 +70,7 @@ binutils 2.47 크로스 빌드(`--target=x86_64-kel-linux-gnu`, LFS pass 1 옵�
 
 | tarball | 결과 | 서명 키 (주 키 지문) | sha256 |
 |---|---|---|---|
-| binutils-2.47.tar.xz | Good signature | Nick Clifton `3A24 BC1E 8FB4 09FA 9F14 3718 13FC EF89 DD9E 3C4F` | (측정 시 미기록) |
+| binutils-2.47.tar.xz | Good signature | Nick Clifton `3A24 BC1E 8FB4 09FA 9F14 3718 13FC EF89 DD9E 3C4F` | `154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff` |
 | gcc-16.2.0.tar.xz (103M) | Good signature | Richard Guenther `1397 5A70 E63C 361C 73AE 69EF 6EEB 81F8 981C 74C7` | `e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e` |
 | glibc-2.44.tar.xz (20M) | Good signature, **단 키가 `[expired]`로 표시** | Andreas K. Huettel `35B1 7DF5 7525 77CA 0C54 1CEB 94BF DF44 84AD 142F` | `37f600f2bef3c5e8300147059568b2a2e40a7ad6ccc65ce942556d49429cc667` |
 
