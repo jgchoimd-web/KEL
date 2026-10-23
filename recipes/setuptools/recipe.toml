@@ -1,0 +1,34 @@
+[package]
+name = "setuptools"
+version = "84.2.1"
+revision = 0
+summary = "Python library for building and distributing Python packages"
+# setuptools itself is MIT; it ships vendored libraries (setuptools/_vendor):
+# importlib_metadata (Apache-2.0), packaging (Apache-2.0 OR BSD-2-Clause),
+# autocommand (LGPL-3.0-or-later) and MIT-licensed ones.
+license = "MIT AND Apache-2.0 AND (Apache-2.0 OR BSD-2-Clause) AND LGPL-3.0-or-later"
+homepage = "https://setuptools.pypa.io/"
+depends = ["python"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/setuptools/84.2.1/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz"
+sha256 = "3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc"
+
+# Package. Based on LFS 13.1 chapter 8.58 (written for 84.0.0): a wheel
+# built without build isolation (setuptools builds itself), installed into
+# DESTDIR instead of the live system. No tests: LFS runs none (they need
+# pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" setuptools
+'''

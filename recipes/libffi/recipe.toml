@@ -1,0 +1,23 @@
+[package]
+name = "libffi"
+version = "3.8.0"
+revision = 0
+summary = "Portable foreign function interface library"
+license = "MIT"
+homepage = "https://sourceware.org/libffi/"
+
+# libffi publishes no signature (D-027). The file's MD5 equals the one LFS
+# 13.1 lists for libffi-3.8.0.tar.gz (chapter 3.2), checked 2026-10-22.
+[[source]]
+url = "https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz"
+sha256 = "7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4"
+
+# Package. Based on LFS 13.1 chapter 8.51. KEL deviations:
+# --with-gcc-arch=native is replaced by LFS's generic --without-gcc-arch
+# (the ISA baseline comes from CFLAGS), and --disable-multi-os-directory
+# installs into /usr/lib itself instead of /usr/lib/$(gcc
+# -print-multi-os-directory), also in libffi.pc.
+[build]
+style = "gnu-configure"
+depends = ["dejagnu", "expect"]
+configure_args = ["--disable-static", "--without-gcc-arch", "--disable-multi-os-directory"]

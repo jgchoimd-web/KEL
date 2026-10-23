@@ -1,0 +1,31 @@
+[package]
+name = "wheel"
+version = "0.48.0"
+revision = 0
+summary = "Command line tool for manipulating Python wheel files"
+license = "MIT"
+homepage = "https://github.com/pypa/wheel"
+# Requires packaging >= 24.0 (pyproject.toml).
+depends = ["python", "packaging"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/wheel/0.48.0/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/d0/20/50ed6bdf27dec98b568a8ae25dc599f35baa3d9709f9e83fd1edb56b9a90/wheel-0.48.0.tar.gz"
+sha256 = "94800765601e9171bf5d58d066e640662842bcedcbab982b2c90787a2c987322"
+
+# Package. Based on LFS 13.1 chapter 8.57: a wheel built without build
+# isolation, installed into DESTDIR instead of the live system. No tests:
+# LFS runs none (they need pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python", "flit-core"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" wheel
+'''

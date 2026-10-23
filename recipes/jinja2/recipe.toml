@@ -1,0 +1,33 @@
+[package]
+name = "jinja2"
+version = "3.1.6"
+revision = 0
+summary = "Template engine for Python"
+license = "BSD-3-Clause"
+homepage = "https://jinja.palletsprojects.com/"
+# Requires MarkupSafe >= 2.0 (pyproject.toml).
+depends = ["python", "markupsafe"]
+
+# PyPI publishes no signature (D-027). The sha256 equals the digest in
+# PyPI's JSON API (https://pypi.org/pypi/jinja2/3.1.6/json), checked
+# 2026-10-22.
+[[source]]
+url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz"
+sha256 = "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"
+
+# Package. Based on LFS 13.1 chapter 8.76: a wheel built without build
+# isolation, installed into DESTDIR instead of the live system. Jinja2
+# declares flit_core<4 as its build requirement, but pip does not check
+# build requirements with --no-build-isolation and flit-core 4 builds it
+# (as in LFS 13.1). No tests: LFS runs none (they need pytest).
+[build]
+style = "custom"
+check = false
+depends = ["python", "flit-core"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" jinja2
+'''

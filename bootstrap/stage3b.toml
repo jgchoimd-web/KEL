@@ -1,0 +1,356 @@
+# Stage 3b: the final base system as packages (docs/DESIGN.md section 5,
+# LFS 13.1-systemd chapter 8 plus KEL's own tools). Every step builds a
+# recipe's [build] section inside the stage 3a root, packages DESTDIR as a
+# signed apk into work/<arch>/repo/<arch>, and copies the package over the
+# root so later steps build against it. Not built (see docs/DECISIONS.md and
+# the recipes' comments): man-pages, inetutils, groff, GRUB (KEL boots with
+# systemd-boot), kbd, libpipeline, Vim, D-Bus, man-db (Phase 3 boot image),
+# XML::Parser and Intltool (dropped in LFS 13.1).
+
+[stage]
+name = "stage3b"
+summary = "final base system packages (LFS 13.1 chapter 8) and KEL's apk-tools and bubblewrap"
+root = "sysroot"
+config_site = true
+
+[[step]]
+recipe = "filesystem"
+profile = "package"
+
+[[step]]
+recipe = "linux-headers"
+profile = "package"
+
+[[step]]
+recipe = "iana-etc"
+profile = "package"
+
+[[step]]
+recipe = "glibc"
+profile = "package"
+
+[[step]]
+recipe = "tzdata"
+profile = "package"
+
+[[step]]
+recipe = "zlib"
+profile = "package"
+
+[[step]]
+recipe = "bzip2"
+profile = "package"
+
+[[step]]
+recipe = "xz"
+profile = "package"
+
+[[step]]
+recipe = "lz4"
+profile = "package"
+
+[[step]]
+recipe = "zstd"
+profile = "package"
+
+[[step]]
+recipe = "file"
+profile = "package"
+
+[[step]]
+recipe = "readline"
+profile = "package"
+
+[[step]]
+recipe = "pcre2"
+profile = "package"
+
+[[step]]
+recipe = "m4"
+profile = "package"
+
+[[step]]
+recipe = "bc"
+profile = "package"
+
+[[step]]
+recipe = "flex"
+profile = "package"
+
+[[step]]
+recipe = "tcl"
+profile = "package"
+
+[[step]]
+recipe = "expect"
+profile = "package"
+
+[[step]]
+recipe = "dejagnu"
+profile = "package"
+
+[[step]]
+recipe = "ninja"
+profile = "package"
+
+[[step]]
+recipe = "pkgconf"
+profile = "package"
+
+[[step]]
+recipe = "binutils"
+profile = "package"
+
+[[step]]
+recipe = "gmp"
+profile = "package"
+
+[[step]]
+recipe = "mpfr"
+profile = "package"
+
+[[step]]
+recipe = "mpc"
+profile = "package"
+
+[[step]]
+recipe = "attr"
+profile = "package"
+
+[[step]]
+recipe = "acl"
+profile = "package"
+
+[[step]]
+recipe = "libcap"
+profile = "package"
+
+[[step]]
+recipe = "libxcrypt"
+profile = "package"
+
+[[step]]
+recipe = "shadow"
+profile = "package"
+
+[[step]]
+recipe = "gawk"
+profile = "package"
+
+[[step]]
+recipe = "gcc"
+profile = "package"
+
+[[step]]
+recipe = "ncurses"
+profile = "package"
+
+[[step]]
+recipe = "sed"
+profile = "package"
+
+[[step]]
+recipe = "psmisc"
+profile = "package"
+
+[[step]]
+recipe = "gettext"
+profile = "package"
+
+[[step]]
+recipe = "bison"
+profile = "package"
+
+[[step]]
+recipe = "grep"
+profile = "package"
+
+[[step]]
+recipe = "bash"
+profile = "package"
+
+[[step]]
+recipe = "libtool"
+profile = "package"
+
+[[step]]
+recipe = "gdbm"
+profile = "package"
+
+[[step]]
+recipe = "gperf"
+profile = "package"
+
+[[step]]
+recipe = "expat"
+profile = "package"
+
+[[step]]
+recipe = "less"
+profile = "package"
+
+[[step]]
+recipe = "perl"
+profile = "package"
+
+[[step]]
+recipe = "autoconf"
+profile = "package"
+
+[[step]]
+recipe = "automake"
+profile = "package"
+
+[[step]]
+recipe = "openssl"
+profile = "package"
+
+[[step]]
+recipe = "elfutils"
+profile = "package"
+
+[[step]]
+recipe = "libffi"
+profile = "package"
+
+[[step]]
+recipe = "sqlite"
+profile = "package"
+
+[[step]]
+recipe = "mpdecimal"
+profile = "package"
+
+[[step]]
+recipe = "python"
+profile = "package"
+
+[[step]]
+recipe = "flit-core"
+profile = "package"
+
+[[step]]
+recipe = "packaging"
+profile = "package"
+
+[[step]]
+recipe = "wheel"
+profile = "package"
+
+[[step]]
+recipe = "setuptools"
+profile = "package"
+
+[[step]]
+recipe = "meson"
+profile = "package"
+
+[[step]]
+recipe = "scdoc"
+profile = "package"
+
+[[step]]
+recipe = "kmod"
+profile = "package"
+
+[[step]]
+recipe = "coreutils"
+profile = "package"
+
+[[step]]
+recipe = "diffutils"
+profile = "package"
+
+[[step]]
+recipe = "findutils"
+profile = "package"
+
+[[step]]
+recipe = "gzip"
+profile = "package"
+
+[[step]]
+recipe = "iproute2"
+profile = "package"
+
+[[step]]
+recipe = "make"
+profile = "package"
+
+[[step]]
+recipe = "patch"
+profile = "package"
+
+[[step]]
+recipe = "tar"
+profile = "package"
+
+[[step]]
+recipe = "texinfo"
+profile = "package"
+
+[[step]]
+recipe = "markupsafe"
+profile = "package"
+
+[[step]]
+recipe = "jinja2"
+profile = "package"
+
+[[step]]
+recipe = "systemd"
+profile = "package"
+
+[[step]]
+recipe = "procps-ng"
+profile = "package"
+
+[[step]]
+recipe = "util-linux"
+profile = "package"
+
+[[step]]
+recipe = "e2fsprogs"
+profile = "package"
+
+[[step]]
+recipe = "apk-tools"
+profile = "package"
+
+[[step]]
+recipe = "bubblewrap"
+profile = "package"
+
+[verify]
+script = '''
+cd "$KEL_WORKDIR"
+# Toolchain sanity checks from LFS 13.1 chapter 8.32.
+echo 'int main(){}' | cc -x c - -v -Wl,--verbose > dummy.log 2>&1
+readelf -l a.out | grep -q '\[Requesting program interpreter: /lib64/ld-linux-x86-64.so.2\]'
+grep -E -o '/usr/lib.*/S?crt[1in].*succeeded' dummy.log
+grep -q 'attempt to open /usr/lib/libc.so.6 succeeded' dummy.log
+gcc -dumpmachine | grep -qx "$KEL_TARGET"
+printf '#include <iostream>\nint main(){std::cout << "c++ ok" << std::endl;}\n' > t.cc
+g++ t.cc -o t && ./t
+# Only KEL's compiler may appear in the binaries (no host toolchain traces).
+for f in /usr/bin/bash /usr/bin/gcc /usr/bin/python3 /usr/bin/apk /usr/lib/libc.so.6 /usr/lib/libstdc++.so.6; do
+  c=$(readelf -p .comment "$f" | grep -o 'GCC: ([^)]*) [0-9.]*' | sort -u | tr '\n' ' ')
+  echo "$f: $c"
+  case "$c" in *Ubuntu*|*Debian*) echo "host compiler trace in $f"; exit 1;; esac
+done
+for t in apk bwrap meson ninja pkg-config perl python3 openssl systemctl udevadm kmod mkfs.ext4 tclsh expect runtest; do
+  command -v "$t" > /dev/null || { echo "missing $t"; exit 1; }
+done
+python3 -c 'import ssl, sqlite3, decimal, zlib, bz2, lzma, ctypes, readline, ensurepip; print("python modules ok")'
+openssl version
+# KEL's own apk installs a working root from the new signed repository.
+mkdir -p r/usr/bin r/usr/lib
+ln -s usr/bin r/bin; ln -s usr/bin r/sbin; ln -s usr/lib r/lib; ln -s usr/lib r/lib64
+ln -s bin r/usr/sbin; ln -s lib r/usr/lib64
+apk --root "$PWD/r" --initdb --arch "$KEL_ARCH" --no-cache --keys-dir /kel/keys \
+    -X /kel/repo/Packages.adb add filesystem bash coreutils
+chroot r /usr/bin/bash -c '. /etc/os-release; echo "apk root: $PRETTY_NAME"; ls --version | head -1'
+apk --root "$PWD/r" --keys-dir /kel/keys -X /kel/repo/Packages.adb info | sort | tr '\n' ' '
+echo
+echo "STAGE3B VERIFY OK"
+'''

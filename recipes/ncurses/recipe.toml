@@ -1,0 +1,71 @@
+[package]
+name = "ncurses"
+version = "6.6"
+revision = 0
+summary = "Terminal handling library"
+license = "X11-distribute-modifications-variant"
+homepage = "https://invisible-island.net/ncurses/"
+
+[[source]]
+url = "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz"
+sha256 = "355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11"
+signature = "https://invisible-island.net/archives/ncurses/ncurses-6.6.tar.gz.asc"
+signing_keys = ["19882D92DDA4C400C22C0D56CC2AF4472167BE03"]  # Thomas E. Dickey
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 13.1 chapter 6.
+[bootstrap.stage2]
+script = '''
+mkdir build
+pushd build
+  ../configure --prefix="$KEL_TOOLS" AWK=gawk
+  make -C include
+  make -C progs tic
+  install progs/tic "$KEL_TOOLS/bin"
+popd
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(./config.guess)" \
+            --mandir=/usr/share/man \
+            --with-manpage-format=normal \
+            --with-shared \
+            --without-normal \
+            --with-cxx-shared \
+            --without-debug \
+            --without-ada \
+            --disable-stripping \
+            AWK=gawk
+make
+make DESTDIR="$KEL_SYSROOT" install
+ln -sv libncursesw.so "$KEL_SYSROOT/usr/lib/libncurses.so"
+sed -e 's/^#if.*XOPEN.*$/#if 1/' -i "$KEL_SYSROOT/usr/include/curses.h"
+'''
+
+# Package. Based on LFS 13.1 chapter 8.33. LFS installs into a staging
+# directory and copies it over / (to replace the running shell's
+# libncursesw safely); kel installs into DESTDIR anyway, so this is a plain
+# DESTDIR install with LFS's curses.h edit and compatibility links made in
+# DESTDIR. check = false: the programs in test/ only run against an
+# installed ncurses (LFS does not run them either). The optional
+# documentation and the ABI 5 libraries are not installed.
+[build]
+style = "gnu-configure"
+check = false
+configure_args = [
+    "--with-shared",
+    "--without-debug",
+    "--without-normal",
+    "--with-cxx-shared",
+    "--enable-pc-files",
+    "--with-pkg-config-libdir=/usr/lib/pkgconfig",
+]
+post_install = '''
+# Always use the wide-character ABI (the links below depend on it).
+sed -e 's/^#if.*XOPEN.*$/#if 1/' -i "$DESTDIR"/usr/include/curses.h
+# Programs that link the non-wide libraries get the wide ones.
+for lib in ncurses form panel menu; do
+    ln -sfv lib${lib}w.so "$DESTDIR"/usr/lib/lib${lib}.so
+    ln -sfv ${lib}w.pc "$DESTDIR"/usr/lib/pkgconfig/${lib}.pc
+done
+ln -sfv libncursesw.so "$DESTDIR"/usr/lib/libcurses.so
+'''

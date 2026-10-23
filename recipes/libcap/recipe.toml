@@ -1,0 +1,36 @@
+[package]
+name = "libcap"
+version = "2.78"
+revision = 0
+summary = "POSIX 1003.1e capabilities library (libcap, libpsx) and tools"
+license = "BSD-3-Clause OR GPL-2.0-only"
+homepage = "https://sites.google.com/site/fullycapable/"
+
+[[source]]
+url = "https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz"
+sha256 = "0d621e562fd932ccf67b9660fb018e468a683d7b827541df27813228c996bb11"
+signature = "https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["38A644698C69787344E954CE29EE848AE2CCF3F4"]  # Andrew G. Morgan
+
+# Package. Based on LFS 13.1 chapter 8.28. libcap has plain Makefiles that
+# honour DESTDIR, prefix=/usr and lib=lib (as in LFS); SBINDIR=/usr/bin puts
+# capsh, getcap, getpcaps and setcap in /usr/bin (KEL: sbin is merged).
+# Pinned instead of autodetected from the build root: PAM_CAP=no (Linux-PAM
+# is not built yet, so no pam_cap.so), GOLANG=no (no Go packages) and
+# USE_GPERF=no. RAISE_SETFCAP=no (upstream's default) keeps make install
+# from putting a file capability on setcap. make test needs no privileges.
+[build]
+style = "make"
+make_args = ["prefix=/usr", "lib=lib", "SBINDIR=/usr/bin", "PAM_CAP=no", "GOLANG=no",
+             "USE_GPERF=no", "RAISE_SETFCAP=no"]
+prepare = '''
+# LFS: do not install the static libraries.
+sed -i '/install -m.*STA/d' libcap/Makefile
+'''
+test = '''
+make prefix=/usr lib=lib SBINDIR=/usr/bin PAM_CAP=no GOLANG=no USE_GPERF=no RAISE_SETFCAP=no test
+'''
+post_install = '''
+install -Dm644 License "$DESTDIR"/usr/share/licenses/libcap/License
+'''

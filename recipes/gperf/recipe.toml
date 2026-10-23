@@ -1,0 +1,18 @@
+[package]
+name = "gperf"
+version = "3.3"
+revision = 0
+summary = "GNU perfect hash function generator"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/gperf/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/gperf/gperf-3.3.tar.gz"
+sha256 = "fd87e0aba7e43ae054837afd6cd4db03a3f2693deb3619085e6ed9d8d9604ad8"
+signature = "https://ftp.gnu.org/gnu/gperf/gperf-3.3.tar.gz.sig"
+signing_keys = ["E0FFBD975397F77A32AB76ECB6301D9E1BBEAC08"]  # Bruno Haible
+
+# Package. Based on LFS 13.1 chapter 8.42. LFS's --docdir is dropped
+# (unversioned docs).
+[build]
+style = "gnu-configure"

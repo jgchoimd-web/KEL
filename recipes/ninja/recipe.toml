@@ -1,0 +1,34 @@
+[package]
+name = "ninja"
+version = "1.13.2"
+revision = 0
+summary = "Small build system with a focus on speed"
+license = "Apache-2.0"
+homepage = "https://ninja-build.org/"
+
+# GitHub tag archive; upstream signs nothing. The URL answered 403 when the
+# sources were collected, so the cached file was recreated with git archive
+# from the tag v1.13.2 (commit 3441b633c2fe2c494e958780ba0f4227b1327634).
+# Its MD5 equals the one LFS 13.1 lists for this URL
+# (76c00637fde44909cd7d56f8d73f2042), checked 2026-10-22.
+[[source]]
+url = "https://github.com/ninja-build/ninja/archive/v1.13.2/ninja-1.13.2.tar.gz"
+sha256 = "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17"
+
+# Package. Based on LFS 13.1 chapter 8.20. Deviations: LFS's optional sed
+# that makes ninja read a NINJAJOBS variable is not applied (a downstream
+# behaviour change; callers can pass -j). Tests are not run: as LFS says,
+# they need googletest/CMake, which are not available here, and
+# --bootstrap already rebuilds ninja with itself.
+[build]
+style = "custom"
+check = false
+depends = ["python"]
+compile = '''
+python3 configure.py --bootstrap --verbose
+'''
+install = '''
+install -Dm755 ninja "$DESTDIR"/usr/bin/ninja
+install -Dm644 misc/bash-completion "$DESTDIR"/usr/share/bash-completion/completions/ninja
+install -Dm644 misc/zsh-completion "$DESTDIR"/usr/share/zsh/site-functions/_ninja
+'''

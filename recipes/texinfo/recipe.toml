@@ -1,0 +1,31 @@
+[package]
+name = "texinfo"
+version = "7.3"
+revision = 0
+summary = "GNU documentation system"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/texinfo/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz"
+sha256 = "51f74eb0f51cfa9873b85264dfdd5d46e8957ec95b88f0fb762f63d9e164c72e"
+signature = "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz.sig"
+signing_keys = ["EAF669B31E31E1DECBD11513DDBC579DAB37FBA9"]  # Gavin Smith
+
+# Stage 3. Based on LFS 13.1 chapter 7.13.
+[bootstrap.stage3]
+script = '''
+./configure --prefix=/usr
+make
+make install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.73 (7.3 needs no source fixes). The
+# optional TeX files (make install-tex) are not installed: KEL has no TeX.
+# The info directory file is an install-time job (kel removes the one make
+# install writes). texi2any's XS modules load without their .la files: they
+# have a RUNPATH to /usr/lib/texi2any/lib and Texinfo's loader falls back to
+# loading the modules directly (checked with TEXINFO_XS=required).
+[build]
+style = "gnu-configure"
+depends = ["perl", "ncurses"]

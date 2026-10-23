@@ -1,0 +1,26 @@
+[package]
+name = "automake"
+version = "1.19"
+revision = 0
+summary = "GNU tool that generates Makefile.in files for use with Autoconf"
+license = "GPL-2.0-or-later AND FSFULLR"
+homepage = "https://www.gnu.org/software/automake/"
+# aclocal and automake are Perl scripts and run autoconf (autom4te).
+depends = ["autoconf", "perl"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/automake/automake-1.19.tar.xz"
+sha256 = "e3e2c2e3abf37898138db5b6c1d1dc35c9160c5978be7947d2c741705251d445"
+signature = "https://ftp.gnu.org/gnu/automake/automake-1.19.tar.xz.sig"
+signing_keys = ["6C222EA6B2BD216AA406516AC868F0B6DE38409D"]  # Kamila Szewczyk
+
+# Package. Based on LFS 13.1 chapter 8.48 (written for 1.18.1). LFS's
+# versioned --docdir is dropped (KEL docs are unversioned). The tests run
+# with at least four jobs like LFS (internal delays in individual tests).
+[build]
+style = "gnu-configure"
+depends = ["autoconf", "perl", "bison", "flex", "gettext", "libtool"]
+test = '''
+cd build
+make -j$(( KEL_JOBS > 4 ? KEL_JOBS : 4 )) check
+'''

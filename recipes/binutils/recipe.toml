@@ -1,0 +1,110 @@
+[package]
+name = "binutils"
+version = "2.47"
+revision = 0
+summary = "GNU assembler, linker and binary utilities"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/binutils/"
+
+[[source]]
+url = "https://sourceware.org/pub/binutils/releases/binutils-2.47.tar.xz"
+sha256 = "154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff"
+signature = "https://sourceware.org/pub/binutils/releases/binutils-2.47.tar.xz.sig"
+signing_keys = ["3A24BC1E8FB409FA9F14371813FCEF89DD9E3C4F"]  # Nick Clifton
+
+# Stage 1: cross binutils for $KEL_TARGET, installed into the sysroot's /tools.
+# Based on LFS 13.1 chapter 5.2.
+[bootstrap.pass1]
+script = '''
+mkdir -v build
+cd build
+../configure \
+    --prefix="$KEL_TOOLS" \
+    --with-sysroot="$KEL_SYSROOT" \
+    --target="$KEL_TARGET" \
+    --disable-nls \
+    --enable-gprofng=no \
+    --disable-werror \
+    --enable-new-dtags \
+    --enable-default-hash-style=gnu
+make
+make install
+'''
+
+# Stage 2: binutils for the target, cross compiled into the sysroot.
+# Based on LFS 13.1 chapter 6.17. The line-numbered sed targets ltmain.sh,
+# which is identical in binutils 2.45 (LFS) and 2.47 (checked 2026-10-22).
+[bootstrap.pass2]
+script = '''
+sed '6031s/$add_dir//' -i ltmain.sh
+mkdir -v build
+cd build
+../configure \
+    --prefix=/usr \
+    --build="$(../config.guess)" \
+    --host="$KEL_TARGET" \
+    --disable-nls \
+    --enable-shared \
+    --enable-gprofng=no \
+    --disable-werror \
+    --enable-64-bit-bfd \
+    --enable-new-dtags \
+    --enable-default-hash-style=gnu
+make
+make DESTDIR="$KEL_SYSROOT" install
+rm -v "$KEL_SYSROOT"/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
+'''
+
+# Package. Based on LFS 13.1 chapter 8.22 (built out of tree).
+# --build=$KEL_TARGET keeps the triplet x86_64-kel-linux-gnu (config.guess
+# would say x86_64-pc-linux-gnu). The test suite is critical (LFS): it always
+# runs and every FAIL line is printed together with the per-tool summaries.
+# Failures are not fatal (LFS 13.1 knows one gprofng failure, and the
+# sandbox may add some, e.g. where perf events are unavailable); the build
+# only stops if the binutils, gas and ld suites did not run at all (no .sum
+# files, e.g. runtest missing, which make check would only warn about).
+# tooldir=/usr as in LFS; the static libraries and gprofng docs are removed
+# as in LFS.
+[build]
+style = "gnu-configure"
+depends = ["zlib", "zstd", "dejagnu", "gettext", "texinfo"]
+make_args = ["tooldir=/usr"]
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr \
+    --sysconfdir=/etc \
+    --build="$KEL_TARGET" \
+    --enable-ld=default \
+    --enable-plugins \
+    --enable-shared \
+    --disable-werror \
+    --enable-64-bit-bfd \
+    --enable-new-dtags \
+    --with-system-zlib \
+    --with-lib-path=/usr/lib \
+    --enable-default-hash-style=gnu
+'''
+test = '''
+cd build
+make -k check || true
+find . -name '*.log' -exec grep -H '^FAIL:' {} + || true
+find . -name '*.sum' | sort | while read -r sum; do
+    echo "== $sum"
+    sed -n '/=== .* Summary ===/,$p' "$sum"
+done
+for sum in binutils/binutils.sum gas/testsuite/gas.sum ld/ld.sum; do
+    if [ ! -f "$sum" ]; then
+        echo "binutils test suite did not run: $sum is missing" >&2
+        exit 1
+    fi
+done
+'''
+install = '''
+cd build
+make tooldir=/usr DESTDIR="$DESTDIR" install
+'''
+post_install = '''
+rm -rfv "$DESTDIR"/usr/lib/lib{bfd,ctf,ctf-nobfd,gprofng,opcodes,sframe}.a \
+        "$DESTDIR"/usr/share/doc/gprofng/
+'''

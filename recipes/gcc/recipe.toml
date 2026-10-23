@@ -1,0 +1,208 @@
+[package]
+name = "gcc"
+version = "16.2.0"
+revision = 0
+summary = "GNU Compiler Collection (C and C++)"
+license = "GPL-3.0-or-later AND GPL-3.0-or-later WITH GCC-exception-3.1"
+homepage = "https://gcc.gnu.org/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz"
+sha256 = "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e"
+signature = "https://ftp.gnu.org/gnu/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz.sig"
+signing_keys = ["13975A70E63C361C73AE69EF6EEB81F8981C74C7"]  # Richard Guenther
+
+# GMP, MPFR and MPC are built in-tree during the bootstrap.
+[[source]]
+url = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz"
+sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+signature = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz.sig"
+signing_keys = ["343C2FF0FBEE5EC2EDBEF399F3599FF828C67298"]  # Niels Möller
+dest = "gmp"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz"
+sha256 = "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01"
+signature = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz.sig"
+signing_keys = ["A534BE3F83E241D918280AEB5831D11A0D4DB02A"]  # Vincent Lefevre
+dest = "mpfr"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz"
+sha256 = "91204cd32f164bd3b7c992d4a6a8ce6519511aadab30f78b6982d0bf8d73e931"
+signature = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz.sig"
+signing_keys = ["AD17A21EF8AED8F1CC02DBD9F7D5C9BF765C61E3"]  # Andreas Enge
+dest = "mpc"
+
+# Stage 1: cross compiler without a C library (only enough to build glibc).
+# Based on LFS 13.1 chapter 5.3.
+[bootstrap.pass1]
+script = '''
+case "$KEL_ARCH" in
+  x86_64)
+    # KEL keeps 64-bit libraries in /usr/lib, not lib64 (DESIGN.md 4.7).
+    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+    ;;
+esac
+mkdir -v build
+cd build
+../configure \
+    --target="$KEL_TARGET" \
+    --prefix="$KEL_TOOLS" \
+    --with-glibc-version="$KEL_VERSION_GLIBC" \
+    --with-sysroot="$KEL_SYSROOT" \
+    --with-newlib \
+    --without-headers \
+    --enable-default-pie \
+    --enable-default-ssp \
+    --disable-fixincludes \
+    --disable-nls \
+    --disable-shared \
+    --disable-multilib \
+    --disable-threads \
+    --disable-libatomic \
+    --disable-libgomp \
+    --disable-libquadmath \
+    --disable-libssp \
+    --disable-libvtv \
+    --disable-libstdcxx \
+    --enable-languages=c,c++
+make
+make install
+# The limits.h installed above is incomplete; build the full internal one.
+cat ../gcc/{limitx,glimits,limity}.h > \
+    "$("$KEL_TARGET-gcc" -print-file-name=include)/limits.h"
+'''
+
+# Stage 1: libstdc++ for the cross compiler, built against the new glibc.
+# Based on LFS 13.1 chapter 5.6. CXX is the C compiler: libstdc++ is not
+# installed yet, so configure checks run with the C++ driver would fail.
+[bootstrap.libstdcxx]
+script = '''
+mkdir -v build
+cd build
+../libstdc++-v3/configure \
+    --host="$KEL_TARGET" \
+    --build="$(../config.guess)" \
+    CXX="$KEL_TARGET-gcc" \
+    --prefix=/usr \
+    --disable-multilib \
+    --disable-nls \
+    --disable-libstdcxx-pch \
+    --with-gxx-include-dir="/tools/$KEL_TARGET/include/c++/$KEL_VERSION_GCC"
+make
+make DESTDIR="$KEL_SYSROOT" install
+# libtool archives are harmful when cross compiling.
+rm -fv "$KEL_SYSROOT"/usr/lib/lib{stdc++,stdc++exp,stdc++fs,supc++}.la
+'''
+
+# Stage 2: native GCC for the target, cross compiled into the sysroot.
+# Based on LFS 13.1 chapter 6.18 (GMP/MPFR/MPC are unpacked by kel).
+# -nostdinc++ keeps the libstdc++ headers of stage 1 out of the build;
+# no fixincludes, so a stale include-fixed from an earlier build is removed.
+[bootstrap.pass2]
+script = '''
+case "$KEL_ARCH" in
+  x86_64)
+    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+    ;;
+esac
+mkdir -v build
+cd build
+../configure \
+    --build="$(../config.guess)" \
+    --host="$KEL_TARGET" \
+    --target="$KEL_TARGET" \
+    --prefix=/usr \
+    --with-build-sysroot="$KEL_SYSROOT" \
+    --enable-default-pie \
+    --enable-default-ssp \
+    --disable-fixincludes \
+    --disable-nls \
+    --disable-multilib \
+    --disable-libatomic \
+    --disable-libgomp \
+    --disable-libquadmath \
+    --disable-libsanitizer \
+    --disable-libssp \
+    --disable-libvtv \
+    --enable-languages=c,c++ \
+    CXX_FOR_TARGET="$KEL_TARGET-gcc -nostdinc++" \
+    LDFLAGS_FOR_TARGET=-L"$PWD/$KEL_TARGET/libgcc" \
+    target_configargs=gcc_cv_target_thread_file=posix
+make
+rm -rf "$KEL_SYSROOT/usr/lib/gcc/$KEL_TARGET/$KEL_VERSION_GCC/include-fixed"
+make DESTDIR="$KEL_SYSROOT" install
+ln -sfv gcc "$KEL_SYSROOT/usr/bin/cc"
+'''
+
+# Package. Based on LFS 13.1 chapter 8.32. KEL deviations:
+# - --build="$KEL_TARGET" keeps the x86_64-kel-linux-gnu triplet of the
+#   stage 1-2 compilers (LFS's native GCC gets config.guess's triplet).
+# - The GMP, MPFR and MPC trees that kel unpacks from the extra sources (for
+#   the bootstrap profiles) are removed, so GCC links the system libraries
+#   built earlier in stage 3b, as in LFS chapter 8.
+# - kel's default --sysconfdir/--localstatedir/... are not passed: GCC
+#   installs nothing there and its mandir/infodir defaults are the same.
+# - Tests: LFS runs `make -k check` as the tester user after raising the hard
+#   stack limit; here it runs as the sandbox's root, where raising a hard
+#   limit is not permitted (allowed to fail). The results are only reported
+#   (LFS 13.1 lists known failures; compare with
+#   https://www.linuxfromscratch.org/lfs/build-logs/13.1/): a test failure
+#   never fails the build.
+# - LFS's chown of the installed headers is not needed (all files are root's)
+#   and its toolchain sanity checks run in stage 3b's [verify] script.
+# - The package also ships /usr/bin/cc (LFS keeps the link from chapter 6;
+#   here the stage 2 profile created it in the sysroot).
+# GCC's static archives (libgcc.a, libstdc++.a, ...) are kept, as in LFS.
+[build]
+style = "gnu-configure"
+depends = ["gmp", "mpfr", "mpc", "zlib", "zstd", "dejagnu", "expect", "tcl"]
+prepare = '''
+case "$KEL_ARCH" in
+  x86_64)
+    # KEL keeps 64-bit libraries in /usr/lib, not lib64 (DESIGN.md 4.7).
+    sed -e '/m64=/s/lib64/lib/' -i.orig gcc/config/i386/t-linux64
+    ;;
+esac
+rm -rf gmp mpfr mpc
+'''
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr \
+             --build="$KEL_TARGET" \
+             LD=ld \
+             --enable-languages=c,c++ \
+             --enable-default-pie \
+             --enable-default-ssp \
+             --enable-host-pie \
+             --enable-targets=all \
+             --disable-multilib \
+             --disable-bootstrap \
+             --disable-fixincludes \
+             --with-system-zlib
+'''
+test = '''
+cd build
+ulimit -s -H unlimited || true
+make -k check || true
+../contrib/test_summary -t || true
+'''
+post_install = '''
+cd "$DESTDIR"
+gcc_version=$(cat "$KEL_SRCDIR/gcc/BASE-VER")
+# FHS link (LFS: ln -svr /usr/bin/cpp /usr/lib).
+ln -sv ../bin/cpp usr/lib/cpp
+ln -sv gcc usr/bin/cc
+ln -sv gcc.1 usr/share/man/man1/cc.1
+# LTO plugin for binutils
+# (LFS: ln -sfvr $(gcc -print-prog-name=liblto_plugin.so) /usr/lib/bfd-plugins/).
+plugin="libexec/gcc/$KEL_TARGET/$gcc_version/liblto_plugin.so"
+test -f "usr/$plugin"
+mkdir -pv usr/lib/bfd-plugins
+ln -sv "../../$plugin" usr/lib/bfd-plugins/liblto_plugin.so
+# Misplaced file (LFS): libstdc++'s gdb pretty-printer hook.
+mkdir -pv usr/share/gdb/auto-load/usr/lib
+mv -v usr/lib/*gdb.py usr/share/gdb/auto-load/usr/lib
+'''

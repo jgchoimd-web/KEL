@@ -1,0 +1,43 @@
+[package]
+name = "gawk"
+version = "5.4.1"
+revision = 0
+summary = "GNU awk"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/gawk/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/gawk/gawk-5.4.1.tar.xz"
+sha256 = "07f6f7342b7febe4313fc2c2542ad93d64fe20ad8717200109f105a826f5fd37"
+signature = "https://ftp.gnu.org/gnu/gawk/gawk-5.4.1.tar.xz.sig"
+signing_keys = ["D1967C63788713177D861ED7DF597815937EC0D2"]  # Arnold Robbins
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 13.1 chapter 6.
+[bootstrap.stage2]
+script = '''
+sed -i 's/extras//' Makefile.in
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(build-aux/config.guess)"
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.31. LFS's `rm -f /usr/bin/gawk-5.4.1`
+# is not needed (it only matters when installing over the chapter 6 gawk;
+# kel installs into an empty DESTDIR) and the optional extra documentation
+# is not installed. check = false: LFS runs the test suite as the
+# unprivileged tester user (some tests fail as root); the build sandbox has
+# only uid 0. gawk uses MPFR/GMP (-M) and readline (debugger) when present.
+[build]
+style = "gnu-configure"
+check = false
+depends = ["gmp", "mpfr", "readline"]
+prepare = '''
+# Do not install the extras (profile.d scripts gawk.sh and gawk.csh).
+sed -i 's/extras//' Makefile.in
+'''
+post_install = '''
+ln -sv gawk.1 "$DESTDIR"/usr/share/man/man1/awk.1
+'''

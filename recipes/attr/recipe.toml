@@ -1,0 +1,32 @@
+[package]
+name = "attr"
+version = "2.6.0"
+revision = 0
+summary = "Library and tools for extended attributes of filesystem objects"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://savannah.nongnu.org/projects/attr"
+
+[[source]]
+url = "https://download.savannah.gnu.org/releases/attr/attr-2.6.0.tar.xz"
+sha256 = "6c8a2148a7b85043b68492bce43316b0e2e214fc4e628c7ede078e76e216330b"
+signature = "https://download.savannah.gnu.org/releases/attr/attr-2.6.0.tar.xz.sig"
+signing_keys = ["259B3792B3D6D319212CC4DCD5BF9FEB0313653A"]  # Andreas Gruenbacher
+
+# Package. Based on LFS 13.1 chapter 8.26 (built out of tree; perl runs the
+# test driver). Tests: only test/attr.run. The other two
+# (test/root/getfattr.run and, as uid 0, test/restore.run) set trusted.*
+# attributes, which needs CAP_SYS_ADMIN in the initial user namespace; the
+# build sandbox is uid 0 in its own user namespace and gets EPERM (user.*
+# attributes work; checked on ext4 on 2026-10-22). The license texts live
+# in doc/, so they are installed by hand.
+[build]
+style = "gnu-configure"
+depends = ["perl", "gettext"]
+configure_args = ["--disable-static"]
+test = '''
+cd build
+make check TESTS=test/attr.run
+'''
+post_install = '''
+install -Dm644 -t "$DESTDIR"/usr/share/licenses/attr doc/COPYING doc/COPYING.LGPL
+'''

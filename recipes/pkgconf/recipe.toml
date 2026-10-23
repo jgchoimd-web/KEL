@@ -1,0 +1,54 @@
+[package]
+name = "pkgconf"
+version = "3.0.10"
+revision = 0
+summary = "Toolkit for compiler and linker flags of installed libraries (provides pkg-config)"
+# COPYING: pkgconf (ISC-style); spdxtool: BSD-2-Clause; cli/getopt_long.c
+# from OpenBSD/NetBSD: ISC-style and BSD-4-Clause.
+license = "pkgconf AND BSD-2-Clause AND BSD-4-Clause AND ISC"
+homepage = "https://github.com/pkgconf/pkgconf"
+
+# pkgconf releases are not signed. This tarball is byte-identical to the
+# copy attached to the GitHub release pkgconf-3.0.10 (both downloaded and
+# compared by sha256 on 2026-10-22).
+[[source]]
+url = "https://distfiles.ariadne.space/pkgconf/pkgconf-3.0.10.tar.xz"
+sha256 = "9371b2f6372da574d4c6dc96fe9b1463037bcf6afcb6671c1555afde7b17e2de"
+
+# pkgconf builds with Meson, which is packaged later in stage 3b (and finds
+# its dependencies with pkg-config). Like LFS, the circular dependency is
+# broken by running meson.py straight from the Meson release tarball.
+[[source]]
+url = "https://github.com/mesonbuild/meson/releases/download/1.12.1/meson-1.12.1.tar.gz"
+sha256 = "ab0a6ca09f8ef70c564c8241fb5a23957886a0b53fb58412b5e07eaf07dba743"
+signature = "https://github.com/mesonbuild/meson/releases/download/1.12.1/meson-1.12.1.tar.gz.asc"
+signing_keys = ["19E2D6D9B46D8DAA6288F877C24E631BABB1FE70"]  # Jussi Pakkanen
+dest = "meson"
+
+# Package. Based on LFS 13.1 chapter 8.21. meson.py comes from the second
+# source ($KEL_SRCDIR/meson) and gets kel's usual meson options; the build,
+# test and install steps are the ones of kel's meson style (LFS runs ninja,
+# ninja test and ninja install, which do the same). Deviations: the doc
+# directory stays unversioned (LFS renames it to pkgconf-3.0.x).
+[build]
+style = "custom"
+depends = ["python", "ninja"]
+configure = '''
+python3 meson/meson.py setup build --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+    --sbindir=bin --buildtype=release --wrap-mode=nodownload
+'''
+compile = '''
+python3 meson/meson.py compile -C build
+'''
+test = '''
+python3 meson/meson.py test -C build --print-errorlogs
+'''
+install = '''
+DESTDIR="$DESTDIR" python3 meson/meson.py install -C build --no-rebuild
+'''
+# Compatibility with the original pkg-config (KEL: pkgconf owns
+# /usr/bin/pkg-config).
+post_install = '''
+ln -sv pkgconf "$DESTDIR"/usr/bin/pkg-config
+ln -sv pkgconf.1 "$DESTDIR"/usr/share/man/man1/pkg-config.1
+'''

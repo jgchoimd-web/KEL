@@ -1,0 +1,71 @@
+[package]
+name = "python"
+version = "3.15.1"
+revision = 0
+summary = "The Python programming language"
+license = "Python-2.0"
+homepage = "https://www.python.org/"
+
+# Since Python 3.14 releases are signed only with Sigstore (PEP 761), which
+# kel cannot check with the standard library. On 2026-10-22 the tarball was
+# verified with sigstore-python 4.5.1 against the 3.15 release manager
+# identity listed on python.org (hugo@python.org, issuer
+# https://github.com/login/oauth); the sha256 also matches python.org's
+# release page and the upstream SBOM. The sha256 pin is what kel enforces.
+[[source]]
+url = "https://www.python.org/ftp/python/3.15.1/Python-3.15.1.tar.xz"
+sha256 = "673ae7232d84c894729882c8257d300ef2d26523911bfd3917ec8ce7f526f99b"
+
+# Stage 3. Based on LFS 13.1 chapter 7.12. Python 3.15 no longer bundles
+# libmpdec, so _decimal is missing here until mpdecimal is packaged.
+[bootstrap.stage3]
+script = '''
+./configure --prefix=/usr \
+            --enable-shared \
+            --without-ensurepip \
+            --without-static-libpython
+make
+make install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.54 (written for 3.14.7; its OpenSSL 4
+# patch does not apply to KEL's OpenSSL 3.5). KEL deviations:
+# - No --enable-optimizations: PGO builds the interpreter twice and profiles
+#   it with a test run, which makes the build much slower and the result
+#   depend on that run (less reproducible).
+# - --with-system-libmpdec (the 3.15 default) is explicit: 3.15 no longer
+#   falls back to its bundled copy, _decimal would just be missing.
+# - The compile phase fails if an extension module for a library that is in
+#   the root was not built. Only _tkinter is expected to be absent (no Tk).
+# - pip is installed from CPython's bundled wheel like ensurepip does it (see
+#   the install phase). LFS's optional /etc/pip.conf is not shipped.
+[build]
+style = "gnu-configure"
+out_of_tree = false
+depends = ["bzip2", "expat", "gdbm", "libffi", "mpdecimal", "ncurses", "openssl", "pkgconf",
+           "readline", "sqlite", "util-linux", "xz", "zlib", "zstd"]
+configure_args = ["--enable-shared", "--with-system-expat", "--with-system-libmpdec",
+                  "--without-static-libpython"]
+compile = '''
+make
+LD_LIBRARY_PATH="$PWD${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ./python -E -c '
+import _bz2, _ctypes, _curses, _curses_panel, _decimal, _gdbm, _hashlib, _lzma
+import _sqlite3, _ssl, _uuid, _zstd, pyexpat, readline, zlib
+'
+'''
+test = '''
+make test TESTOPTS="--timeout 120 -j$KEL_JOBS -u-network,-urlfetch"
+'''
+# make install would run "python -m ensurepip --upgrade --root=$DESTDIR/",
+# which installs nothing when the live root already has this pip (a rebuild
+# of this package). So ensurepip is disabled there and its pip command is
+# run here with --ignore-installed (ENSUREPIP_OPTIONS=install: pip3 and
+# pip3.15, no "pip", as with make install).
+install = '''
+make DESTDIR="$DESTDIR" ENSUREPIP=no install
+whl=$(echo Lib/ensurepip/_bundled/pip-*-py3-none-any.whl)
+LD_LIBRARY_PATH="$PWD${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+ENSUREPIP_OPTIONS=install PIP_CONFIG_FILE=/dev/null \
+    ./python -E "$whl/pip" install --no-cache-dir --no-index --find-links "${whl%/*}" \
+    --ignore-installed --root "$DESTDIR/" pip
+'''

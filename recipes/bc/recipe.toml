@@ -1,0 +1,28 @@
+[package]
+name = "bc"
+version = "7.0.3"
+revision = 0
+summary = "Arbitrary precision calculator language (bc and dc)"
+license = "BSD-2-Clause"
+homepage = "https://git.gavinhoward.com/gavin/bc"
+
+# 7.1.0 is newer, but upstream marks it UNTESTED; 7.0.3 is the latest
+# production release (docs/DECISIONS.md D-027).
+[[source]]
+url = "https://github.com/gavinhoward/bc/releases/download/7.0.3/bc-7.0.3.tar.xz"
+sha256 = "91eb74caed0ee6655b669711a4f350c25579778694df248e28363318e03c7fc4"
+signature = "https://github.com/gavinhoward/bc/releases/download/7.0.3/bc-7.0.3.tar.xz.sig"
+signing_keys = ["FF360647C7A7147F27DAAEC1B132F881C306590A"]  # Gavin D. Howard
+
+# Package. Based on LFS 13.1 chapter 8.15. bc's configure is its own script
+# (not autoconf), so it gets LFS's options only. Notes: bc puts -O3 before
+# KEL's CFLAGS, so their -O2 is what takes effect. DESTDIR is already set
+# when configure runs (kel exports it), which bc records in the Makefile;
+# in that mode its message catalogs are installed for every locale whose
+# charmap glibc provides (locale -m), not just the locales compiled into the
+# build root, so the package does not depend on the build root's locales.
+[build]
+style = "make"
+depends = ["readline"]
+configure = "CC='gcc -std=c99' ./configure --prefix=/usr -G -O3 -r"
+test = "make test"

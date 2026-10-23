@@ -1,0 +1,49 @@
+[package]
+name = "gmp"
+version = "6.3.0"
+revision = 0
+summary = "GNU multiple precision arithmetic library"
+license = "LGPL-3.0-or-later OR GPL-2.0-or-later"
+homepage = "https://gmplib.org/"
+
+# Same file as GCC's in-tree GMP (recipes/gcc).
+[[source]]
+url = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz"
+sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+signature = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz.sig"
+signing_keys = ["343C2FF0FBEE5EC2EDBEF399F3599FF828C67298"]  # Niels Möller
+
+# Package. Based on LFS 13.1 chapter 8.23 (built out of tree). Deviations:
+# - --enable-fat instead of a library tuned for the build machine's CPU
+#   (KEL policy): all x86-64 code paths are built and chosen at run time,
+#   and the ISA baseline comes from CFLAGS.
+# - --build=$KEL_TARGET: GMP's own config.guess names the build machine's
+#   CPU (e.g. skylake-pc-linux-gnu). With --enable-fat that only changes the
+#   triplet, but this way configure does not depend on the build machine.
+# - No HTML manual (the info manual is installed).
+# The test suite is critical (LFS): GMP has no known failures, so every
+# failure stops the build, and at least 199 tests must pass as in LFS.
+[build]
+style = "gnu-configure"
+depends = ["m4"]
+prepare = '''
+# LFS: a configure test uses pre-C23 syntax that GCC 15 and later reject.
+sed -i '/long long t1;/,+1s/()/(...)/' configure
+'''
+configure = '''
+mkdir -p build
+cd build
+../configure --prefix=/usr --build="$KEL_TARGET" --enable-cxx --disable-static --enable-fat
+'''
+test = '''
+cd build
+status=0
+make -k check || status=$?
+find tests -name test-suite.log -exec grep -H -E '^(FAIL|ERROR|XPASS)' {} + || true
+pass=$(find tests -name '*.log' ! -name test-suite.log -exec cat {} + | grep -c '^PASS' || true)
+echo "GMP test suite: $pass tests passed, make check exit status $status"
+if [ "$status" -ne 0 ] || [ "$pass" -lt 199 ]; then
+    echo "GMP test suite failed (LFS 13.1 expects all of at least 199 tests to pass)" >&2
+    exit 1
+fi
+'''

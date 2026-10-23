@@ -1,0 +1,88 @@
+[package]
+name = "filesystem"
+version = "0.1"
+revision = 0
+summary = "KEL base directory layout and essential files"
+license = "MIT"
+homepage = "https://github.com/jgchoimd-web/KEL"
+
+# No upstream source: the files come from recipes/filesystem/files/.
+# passwd and group are LFS 13.1 chapter 7.6 without the systemd service
+# users: those come from systemd's sysusers.d at install time (DESIGN.md 4.3).
+# os-release is KEL's own (os-release(5): /etc/os-release is a relative
+# symlink to /usr/lib/os-release).
+
+# Stage 3 entry: directory layout and essential files inside the new root.
+# Based on LFS 13.1 chapters 7.5 and 7.6, adapted to merged /usr with
+# bin and sbin merged (bin, sbin, lib, lib64 are already symlinks).
+# LFS's "chgrp utmp /var/log/lastlog" and the tester user are left out:
+# the bootstrap sandbox maps a single uid/gid, so other owners cannot be set.
+[bootstrap.stage3]
+script = '''
+mkdir -pv /{boot,home,mnt,opt,srv,media}
+mkdir -pv /etc/opt
+mkdir -pv /usr/lib/firmware /usr/lib/locale
+mkdir -pv /usr/{,local/}{include,src}
+mkdir -pv /usr/local/{bin,lib}
+ln -sfnv bin /usr/local/sbin
+mkdir -pv /usr/{,local/}share/{color,dict,doc,info,locale,man}
+mkdir -pv /usr/{,local/}share/{misc,terminfo,zoneinfo}
+mkdir -pv /usr/{,local/}share/man/man{1..8}
+mkdir -pv /var/{cache,local,log,mail,opt,spool}
+mkdir -pv /var/lib/{color,misc,locate}
+ln -sfnv /run /var/run
+ln -sfnv /run/lock /var/lock
+install -dv -m 0750 /root
+install -dv -m 1777 /var/tmp
+
+ln -sfnv /proc/self/mounts /etc/mtab
+install -m 0644 etc/passwd etc/group etc/hosts /etc/
+install -m 0644 usr/lib/os-release /usr/lib/os-release
+ln -sfnv ../usr/lib/os-release /etc/os-release
+
+touch /var/log/{btmp,lastlog,faillog,wtmp}
+chmod -v 664 /var/log/lastlog
+chmod -v 600 /var/log/btmp
+'''
+
+# The same layout as a package (stage 3b onwards): build roots and installed
+# systems get it from apk, so it must come first. All files are owned by
+# root; runtime state such as /var/log/wtmp is created by systemd-tmpfiles
+# at boot instead of being shipped.
+[build]
+style = "custom"
+strip = false
+install = '''
+cd "$DESTDIR"
+install -d -m 0755 boot dev etc etc/opt home media mnt opt proc run srv sys usr var
+install -d -m 0750 root
+install -d -m 1777 tmp var/tmp
+install -d -m 0755 usr/bin usr/include usr/lib usr/lib/firmware usr/lib/locale usr/libexec usr/src
+install -d -m 0755 usr/local/{bin,include,lib,src}
+install -d -m 0755 usr/{,local/}share/{color,dict,doc,info,locale,man,misc,terminfo,zoneinfo}
+install -d -m 0755 usr/{,local/}share/man/man{1..8}
+install -d -m 0755 var/{cache,lib,local,log,mail,opt,spool} var/lib/{color,misc,locate}
+ln -s usr/bin bin
+ln -s usr/bin sbin
+ln -s usr/lib lib
+if [ "$KEL_ARCH" = x86_64 ]; then
+    ln -s usr/lib lib64
+fi
+ln -s bin usr/sbin
+ln -s lib usr/lib64
+ln -s ../run var/run
+ln -s ../run/lock var/lock
+ln -s ../proc/self/mounts etc/mtab
+install -m 0644 "$KEL_SRCDIR"/etc/{passwd,group,hosts} etc/
+install -m 0644 "$KEL_SRCDIR"/usr/lib/os-release usr/lib/os-release
+ln -s ../usr/lib/os-release etc/os-release
+'''
+
+# End of stage 3a: drop documentation and libtool archives of the temporary
+# tools and the cross toolchain (LFS 13.1 chapter 7.15).
+[bootstrap.stage3-cleanup]
+script = '''
+rm -rf /usr/share/{info,man,doc}/*
+find /usr/{lib,libexec} -name '*.la' -delete
+rm -rf /tools
+'''

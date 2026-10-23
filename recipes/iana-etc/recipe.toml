@@ -1,0 +1,24 @@
+[package]
+name = "iana-etc"
+version = "20261015"
+revision = 0
+summary = "Network services and protocols data (/etc/services, /etc/protocols)"
+license = "CC0-1.0"
+homepage = "https://github.com/Mic92/iana-etc"
+
+# The files are generated from the IANA protocol registries, which IANA and
+# the IETF dedicate to the public domain under CC0 1.0
+# (https://www.iana.org/help/licensing-terms); the tarball has no licence
+# file. No signature is published: the sha256 equals the release's own
+# iana-etc-20261015.tar.gz.sha256 asset (checked 2026-10-22).
+[[source]]
+url = "https://github.com/Mic92/iana-etc/releases/download/20261015/iana-etc-20261015.tar.gz"
+sha256 = "6a4a9663befe0b9c5ad65433fdb161c4e7a8283fbc6f7f46cf4892291f8d29eb"
+
+# Package. Based on LFS 13.1 chapter 8.4. No test suite.
+[build]
+style = "custom"
+strip = false
+install = '''
+install -Dm644 -t "$DESTDIR"/etc services protocols
+'''

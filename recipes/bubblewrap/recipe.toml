@@ -1,0 +1,27 @@
+[package]
+name = "bubblewrap"
+version = "0.13.1"
+revision = 0
+summary = "Unprivileged sandboxing tool (bwrap)"
+license = "LGPL-2.1-or-later"
+homepage = "https://github.com/containers/bubblewrap"
+
+# Upstream publishes no detached signature. The release tarball's tree is
+# identical to the tag v0.13.1 (commit 362936aea0d5c6e70f7af75d2d44b5a914cb4ba2),
+# which carries a valid signature by Alexander Larsson
+# (252C6FEA78A69D3BC0AD458A616C5BDC0C29AB04); both checked 2026-10-22.
+[[source]]
+url = "https://github.com/containers/bubblewrap/releases/download/v0.13.1/bubblewrap-0.13.1.tar.xz"
+sha256 = "0e85c8702248b8dd64144f594147553650cdd0e4c951690345faace79c217c4d"
+
+# Package. Not in LFS: the sandbox kel builds with (D-003). No man page (it
+# needs xsltproc and the DocBook XSL stylesheets, not built yet), no SELinux
+# support for now (D-017 comes later). Bash and zsh completions are installed
+# (upstream default). No tests: they run bwrap itself (nested user namespaces
+# and mounts), which kel's own capability-less bwrap sandbox does not allow
+# reliably.
+[build]
+style = "meson"
+configure_args = ["-Dman=disabled", "-Dselinux=disabled", "-Dtests=false"]
+check = false
+depends = ["meson", "ninja", "pkgconf", "libcap", "python"]

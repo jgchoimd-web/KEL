@@ -1,0 +1,22 @@
+[package]
+name = "mpc"
+version = "1.4.1"
+revision = 0
+summary = "Library for complex number arithmetic with arbitrary precision and correct rounding"
+license = "LGPL-3.0-or-later"
+homepage = "https://www.multiprecision.org/mpc/"
+
+# Same file as GCC's in-tree MPC (recipes/gcc).
+[[source]]
+url = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz"
+sha256 = "91204cd32f164bd3b7c992d4a6a8ce6519511aadab30f78b6982d0bf8d73e931"
+signature = "https://ftp.gnu.org/gnu/mpc/mpc-1.4.1.tar.xz.sig"
+signing_keys = ["AD17A21EF8AED8F1CC02DBD9F7D5C9BF765C61E3"]  # Andreas Enge
+
+# Package. Based on LFS 13.1 chapter 8.25 (built out of tree, no HTML
+# manual). The test suite is run like in LFS; it has no known failures, so
+# any failure stops the build (default make check).
+[build]
+style = "gnu-configure"
+depends = ["gmp", "mpfr"]
+configure_args = ["--disable-static"]

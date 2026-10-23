@@ -1,0 +1,41 @@
+[package]
+name = "openssl"
+version = "3.5.9"
+revision = 0
+summary = "TLS and cryptography toolkit (libssl, libcrypto, openssl)"
+license = "Apache-2.0"
+homepage = "https://openssl-library.org/"
+
+# 3.5 is the LTS branch (D-020).
+[[source]]
+url = "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz"
+sha256 = "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+signature = "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz.asc"
+signing_keys = ["B146647E45A7B33947AB226B2A2C87D161692D40"]  # OpenSSL <openssl@openssl.org>
+
+# Package. Based on LFS 13.1 chapter 8.49 with the OpenSSL 3.5 commands of
+# LFS 12.4 chapter 8.48 (13.1 has OpenSSL 4.0). KEL deviations: installed
+# into DESTDIR; the HTML manual stays in the unversioned
+# /usr/share/doc/openssl (LFS renames it and optionally copies doc/*);
+# test_afalg is skipped because its result depends on the build host's
+# kernel (AF_ALG with cbc(aes)), which LFS says can be ignored. Not a
+# dependency: perl, which only the c_rehash and /etc/ssl/misc/*.pl helper
+# scripts need (openssl rehash replaces c_rehash).
+[build]
+style = "make"
+depends = ["perl", "zlib"]
+configure = '''
+./config --prefix=/usr \
+         --openssldir=/etc/ssl \
+         --libdir=lib \
+         shared \
+         zlib-dynamic
+'''
+test = '''
+HARNESS_JOBS="$KEL_JOBS" make test TESTS='-test_afalg'
+'''
+# LFS: do not install the static libraries.
+install = '''
+sed -i '/INSTALL_LIBS/s/libcrypto.a libssl.a//' Makefile
+make DESTDIR="$DESTDIR" MANSUFFIX=ssl install
+'''

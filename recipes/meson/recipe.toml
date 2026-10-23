@@ -1,0 +1,36 @@
+[package]
+name = "meson"
+version = "1.12.1"
+revision = 0
+summary = "Meson build system"
+license = "Apache-2.0"
+homepage = "https://mesonbuild.com/"
+# Meson generates build files for ninja and runs it.
+depends = ["python", "ninja"]
+
+# Same file as on PyPI (identical sha256).
+[[source]]
+url = "https://github.com/mesonbuild/meson/releases/download/1.12.1/meson-1.12.1.tar.gz"
+sha256 = "ab0a6ca09f8ef70c564c8241fb5a23957886a0b53fb58412b5e07eaf07dba743"
+signature = "https://github.com/mesonbuild/meson/releases/download/1.12.1/meson-1.12.1.tar.gz.asc"
+signing_keys = ["19E2D6D9B46D8DAA6288F877C24E631BABB1FE70"]  # Jussi Pakkanen
+
+# Package. Based on LFS 13.1 chapter 8.59 (written for 1.12.0): a wheel
+# built without build isolation, installed into DESTDIR instead of the live
+# system, plus the bash and zsh completions like LFS. No tests: LFS runs
+# none (meson's own suite needs many compilers and takes long).
+[build]
+style = "custom"
+check = false
+depends = ["python", "setuptools"]
+compile = '''
+pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps "$PWD"
+'''
+install = '''
+pip3 install --no-index --find-links dist --no-cache-dir --no-deps --ignore-installed \
+    --root="$DESTDIR" meson
+install -vDm644 data/shell-completions/bash/meson \
+    "$DESTDIR/usr/share/bash-completion/completions/meson"
+install -vDm644 data/shell-completions/zsh/_meson \
+    "$DESTDIR/usr/share/zsh/site-functions/_meson"
+'''

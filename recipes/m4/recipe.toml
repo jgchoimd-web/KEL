@@ -1,0 +1,29 @@
+[package]
+name = "m4"
+version = "1.4.21"
+revision = 0
+summary = "GNU macro processor"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/m4/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz"
+sha256 = "f25c6ab51548a73a75558742fb031e0625d6485fe5f9155949d6486a2408ab66"
+signature = "https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz.sig"
+signing_keys = ["71C2CC22B1C4602927D2F3AAA7A16B4A2527436A"]  # Eric Blake
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 13.1 chapter 6.
+[bootstrap.stage2]
+script = '''
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(build-aux/config.guess)"
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.14.
+[build]
+style = "gnu-configure"
+depends = ["texinfo"]

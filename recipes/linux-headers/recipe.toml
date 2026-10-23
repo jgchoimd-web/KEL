@@ -1,0 +1,37 @@
+[package]
+name = "linux-headers"
+version = "6.18.58"
+revision = 0
+summary = "Linux kernel API headers for userspace"
+license = "GPL-2.0-only WITH Linux-syscall-note"
+homepage = "https://www.kernel.org/"
+
+# The same source as recipes/linux. kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.58.tar.xz"
+sha256 = "069b19f9032c4dac8149ae4b6520c35debca0f42a9f6d52ee55ba6ca9b818013"
+signature = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.58.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["647F28654894E3BD457199BE38DBBDC86092693E"]  # Greg Kroah-Hartman
+
+# Package. Based on LFS 13.1 chapter 5.4: LFS installs the headers once, in
+# chapter 5, and has no chapter 8 step for them; KEL ships them as their own
+# package (the kernel itself is recipes/linux). ARCH comes from kel, as in
+# the [bootstrap.headers] profile of recipes/linux. No test suite.
+# The kernel's COPYING refers to LICENSES/preferred/GPL-2.0 and
+# LICENSES/exceptions/Linux-syscall-note, so all three are shipped.
+[build]
+style = "custom"
+strip = false
+depends = ["perl"]
+compile = '''
+make ARCH="$KEL_KERNEL_ARCH" mrproper
+make ARCH="$KEL_KERNEL_ARCH" headers
+find usr/include -type f ! -name '*.h' -delete
+'''
+install = '''
+mkdir -p "$DESTDIR"/usr
+cp -r usr/include "$DESTDIR"/usr
+install -Dm644 -t "$DESTDIR"/usr/share/licenses/linux-headers \
+    COPYING LICENSES/preferred/GPL-2.0 LICENSES/exceptions/Linux-syscall-note
+'''

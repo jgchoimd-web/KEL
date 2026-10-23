@@ -1,0 +1,101 @@
+# Stage 2: temporary tools cross compiled with the stage 1 toolchain and
+# installed into the sysroot (docs/DESIGN.md section 5, LFS 13.1 chapter 6).
+# After this stage the sysroot can build software on its own (stage 3).
+
+[stage]
+name = "stage2"
+summary = "temporary tools: shell, core utilities, make, binutils and GCC for the target"
+# The configure runs describe the target, so kel's autoconf cache values
+# for its glibc apply (LFS 13.1 chapter 6.2).
+config_site = true
+
+[[step]]
+recipe = "m4"
+profile = "stage2"
+
+[[step]]
+recipe = "ncurses"
+profile = "stage2"
+
+[[step]]
+recipe = "bash"
+profile = "stage2"
+
+[[step]]
+recipe = "coreutils"
+profile = "stage2"
+
+[[step]]
+recipe = "diffutils"
+profile = "stage2"
+
+[[step]]
+recipe = "file"
+profile = "stage2"
+
+[[step]]
+recipe = "findutils"
+profile = "stage2"
+
+[[step]]
+recipe = "gawk"
+profile = "stage2"
+
+[[step]]
+recipe = "grep"
+profile = "stage2"
+
+[[step]]
+recipe = "gzip"
+profile = "stage2"
+
+[[step]]
+recipe = "make"
+profile = "stage2"
+
+[[step]]
+recipe = "patch"
+profile = "stage2"
+
+[[step]]
+recipe = "sed"
+profile = "stage2"
+
+[[step]]
+recipe = "tar"
+profile = "stage2"
+
+[[step]]
+recipe = "xz"
+profile = "stage2"
+
+[[step]]
+recipe = "binutils"
+profile = "pass2"
+
+[[step]]
+recipe = "gcc"
+profile = "pass2"
+
+# The sysroot's own tools run on its own glibc; nothing comes from the host
+# compiler (.comment), and the native compiler can build a program.
+[verify]
+script = '''
+cd "$KEL_WORKDIR"
+S="$KEL_SYSROOT"
+run() { "$S/usr/lib/ld-linux-x86-64.so.2" --library-path "$S/usr/lib" "$@"; }
+for t in bash sh ls cp mv rm cat sed grep gawk find xargs tar xz gzip make patch diff file m4 \
+         as ld gcc g++ cc; do
+  test -x "$S/usr/bin/$t" || { echo "missing /usr/bin/$t"; exit 1; }
+done
+if [ "$KEL_ARCH" = x86_64 ] && [ "$(uname -m)" = x86_64 ]; then
+  run "$S/usr/bin/bash" -c 'echo "bash $BASH_VERSION"'
+  run "$S/usr/bin/ls" --version | head -1
+fi
+for f in usr/bin/bash usr/bin/ls usr/bin/make usr/bin/gcc usr/lib/libstdc++.so.6; do
+  c=$(readelf -p .comment "$S/$f" | grep -o 'GCC: ([^)]*) [0-9.]*' | sort -u | tr '\n' ' ')
+  echo "$f: $c"
+  case "$c" in *Ubuntu*|*Debian*) echo "host compiler trace in $f"; exit 1 ;; esac
+done
+echo "STAGE2 VERIFY OK"
+'''

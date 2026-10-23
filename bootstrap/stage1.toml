@@ -1,0 +1,59 @@
+# Stage 1: cross toolchain (docs/DESIGN.md section 5).
+# Built with the host compiler; the result targets $KEL_TARGET and lives in
+# the sysroot (/tools for the cross tools, /usr for glibc and libstdc++).
+
+[stage]
+name = "stage1"
+summary = "cross toolchain: binutils, GCC pass 1, Linux API headers, glibc, libstdc++"
+
+[[step]]
+recipe = "binutils"
+profile = "pass1"
+
+[[step]]
+recipe = "gcc"
+profile = "pass1"
+
+[[step]]
+recipe = "linux"
+profile = "headers"
+
+[[step]]
+recipe = "glibc"
+profile = "cross"
+
+[[step]]
+recipe = "gcc"
+profile = "libstdcxx"
+
+# Pass criteria from DESIGN.md 5.1: programs built by the cross compiler ask
+# for the ABI loader path, link against the sysroot's crt files and libc, and
+# a C++ program runs on KEL's own glibc (not the host's).
+[verify]
+script = '''
+cd "$KEL_WORKDIR"
+case "$KEL_ARCH" in
+  x86_64)  loader=ld-linux-x86-64.so.2; interp=/lib64/ld-linux-x86-64.so.2 ;;
+  aarch64) loader=ld-linux-aarch64.so.1; interp=/lib/ld-linux-aarch64.so.1 ;;
+esac
+
+printf 'int main(void) { return 0; }\n' > hello.c
+"$KEL_TARGET-gcc" hello.c -v -Wl,--verbose -o hello > link.log 2>&1
+got=$(readelf -l hello | sed -n 's/.*Requesting program interpreter: \(.*\)]/\1/p')
+echo "interpreter: $got"
+test "$got" = "$interp"
+grep -E -o "$KEL_SYSROOT/[^ ]*/S?crt[1in]\.o succeeded" link.log
+grep -E "attempt to open $KEL_SYSROOT/usr/lib/libc\.so\.6 succeeded" link.log
+test -f "$KEL_SYSROOT/usr/lib/$loader"
+
+printf '#include <iostream>\nint main() { std::cout << "hello from the KEL stage1 toolchain" << std::endl; }\n' > hello.cc
+"$KEL_TARGET-g++" hello.cc -o hellocc
+if [ "$KEL_ARCH" = "$(uname -m)" ]; then
+  # Run on KEL's glibc and libstdc++ through KEL's loader, not the host's.
+  out=$("$KEL_SYSROOT/usr/lib/$loader" --library-path "$KEL_SYSROOT/usr/lib" ./hellocc)
+  echo "$out"
+  test "$out" = "hello from the KEL stage1 toolchain"
+fi
+readelf -p .comment hellocc
+echo "STAGE1 VERIFY OK"
+'''

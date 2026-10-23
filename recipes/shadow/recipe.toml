@@ -1,0 +1,60 @@
+[package]
+name = "shadow"
+version = "4.20.3"
+revision = 0
+summary = "Tools for users, groups and passwords (login, su, passwd, useradd, ...)"
+# Most files BSD-3-Clause; vipw.c GPL-2.0-or-later, nologin.c BSD-2-Clause,
+# salt.c and login_nopam.c Unlicense.
+license = "BSD-3-Clause AND BSD-2-Clause AND GPL-2.0-or-later AND Unlicense"
+homepage = "https://github.com/shadow-maint/shadow"
+
+[[source]]
+url = "https://github.com/shadow-maint/shadow/releases/download/4.20.3/shadow-4.20.3.tar.xz"
+sha256 = "623be9429f64fa2165bfc5957c6a642ec309c5cf23c0d53855c99f7591922297"
+signature = "https://github.com/shadow-maint/shadow/releases/download/4.20.3/shadow-4.20.3.tar.xz.asc"
+signing_keys = ["A9348594CE31283A826FBDD8D57633D441E25BB5"]  # Alejandro Colomar
+
+# Package. Based on LFS 13.1 chapter 8.30 (written for 4.20.2), built in the
+# source tree like LFS. Deviations:
+# - No PAM yet (--without-libpam): Linux-PAM is not part of stage 3b. KEL
+#   plans shadow with PAM (D-007), so it is rebuilt once PAM exists. Like
+#   LFS, logind support is off (systemd comes later in stage 3b).
+# - --without-tcb: no tcb, and with tcb make install would
+#   "chown root:shadow" passwd, which the single-uid build sandbox cannot do.
+#   newuidmap/newgidmap stay setuid root (--with-fcaps is off by default);
+#   make install sets the setuid bits with chmod, which is fine.
+# - LFS's "touch /usr/bin/passwd" is dropped, so nothing is written to the
+#   live root. Older shadow releases chose PASSWD_PROGRAM at configure time
+#   by testing whether /usr/bin/passwd existed; 4.20.3's configure hard-codes
+#   "$exec_prefix/bin/passwd", and with --prefix=/usr it empties exec_prefix
+#   first, so the result is /bin/passwd (= /usr/bin/passwd through the
+#   merged-/usr symlink) whatever the build root contains. Nothing else in
+#   the build or install looks at /usr/bin/passwd.
+# - Everything is installed into /usr/bin: --sbindir=/usr/bin (kel's
+#   default) for nologin, exec_prefix=/usr for login, su and getsubids (as in
+#   LFS) and usbindir=/usr/bin for the programs LFS puts in /usr/sbin.
+# - LFS's configuration steps (pwconv, grpconv, useradd -D, /etc/sub{u,g}id,
+#   passwd root) are install-time steps and are not run here.
+# Like LFS: man pages that man-pages provides (getspnam.3, passwd.5) are not
+# installed, and login.defs uses YESCRYPT, /var/mail and no /bin, /sbin in
+# PATH. No test suite (LFS; the cmocka unit tests need cmocka).
+[build]
+style = "gnu-configure"
+out_of_tree = false
+check = false
+depends = ["acl", "attr", "libxcrypt", "pkgconf", "gettext"]
+configure_args = ["--disable-static", "--with-bcrypt", "--with-yescrypt", "--without-libbsd",
+                  "--without-libpam", "--without-tcb", "--disable-logind",
+                  "--with-group-name-max-length=32"]
+prepare = '''
+find man -name Makefile.in -exec sed -i 's/getspnam\.3 / /' {} \;
+find man -name Makefile.in -exec sed -i 's/passwd\.5 / /'   {} \;
+sed -e 's:#ENCRYPT_METHOD SHA512:ENCRYPT_METHOD YESCRYPT:' \
+    -e 's:/var/spool/mail:/var/mail:'                      \
+    -e '/PATH=/{s@/sbin:@@;s@/bin:@@}'                     \
+    -i etc/login.defs
+'''
+install = '''
+make exec_prefix=/usr usbindir=/usr/bin DESTDIR="$DESTDIR" install
+make -C man DESTDIR="$DESTDIR" install-man
+'''

@@ -1,0 +1,31 @@
+[package]
+name = "kmod"
+version = "34.2"
+revision = 0
+summary = "Linux kernel module tools (modprobe, insmod, depmod, ...) and libkmod"
+license = "LGPL-2.1-or-later AND GPL-2.0-or-later"
+homepage = "https://github.com/kmod-project/kmod"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://www.kernel.org/pub/linux/utils/kernel/kmod/kmod-34.2.tar.xz"
+sha256 = "5a5d5073070cc7e0c7a7a3c6ec2a0e1780850c8b47b3e3892226b93ffcb9cb54"
+signature = "https://www.kernel.org/pub/linux/utils/kernel/kmod/kmod-34.2.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["EAB33C9690013C733916AC839BA2A5A630CBEA53"]  # Lucas De Marchi
+
+# Package. Based on LFS 13.1 chapter 8.60. scdoc is built before kmod, so the
+# man pages are built (LFS has no scdoc and passes -D manpages=false). With
+# kel's --sbindir=bin, kmod's install script creates the depmod, insmod,
+# lsmod, modinfo, modprobe and rmmod links to kmod in /usr/bin. Support for
+# zstd/xz/gzip compressed modules and PKCS#7 signatures (openssl) is pinned on
+# (upstream's default). Modules stay in the default /lib/modules, which is
+# /usr/lib/modules through the /lib link, as in LFS. No tests: the test suite
+# needs raw kernel headers and a kernel build tree for its test modules (LFS:
+# beyond its scope) and is not even built by default.
+[build]
+style = "meson"
+configure_args = ["-Dmanpages=true", "-Dzstd=enabled", "-Dxz=enabled", "-Dzlib=enabled",
+                  "-Dopenssl=enabled"]
+check = false
+depends = ["meson", "ninja", "pkgconf", "scdoc", "openssl", "xz", "zlib", "zstd"]

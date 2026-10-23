@@ -1,0 +1,71 @@
+[package]
+name = "readline"
+version = "8.3_p6"
+revision = 0
+summary = "GNU line editing and history libraries"
+license = "GPL-3.0-or-later"
+homepage = "https://tiswww.case.edu/php/chet/readline/rltop.html"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3.tar.gz"
+sha256 = "fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3.tar.gz.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]  # Chet Ramey
+
+# Official upstream patches (applied with patch -p0, in order).
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-001"
+sha256 = "21f0a03106dbe697337cd25c70eb0edbaa2bdb6d595b45f83285cdd35bac84de"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-001.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-002"
+sha256 = "e27364396ba9f6debf7cbaaf1a669e2b2854241ae07f7eca74ca8a8ba0c97472"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-002.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-003"
+sha256 = "72dee13601ce38f6746eb15239999a7c56f8e1ff5eb1ec8153a1f213e4acdb29"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-003.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-004"
+sha256 = "1f189c4566aa35950964647b9ec3be1a821e42b86048129c63eb7f9d4d2f5a74"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-004.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-005"
+sha256 = "5481adbe161c9f6ba972c74db9e18c7aa351d3df3035cc4a673a1aa06247d1c6"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-005.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-006"
+sha256 = "4ebd261a608287796e171af0ea9af5a1e3122e46672accda2484b6698c47c1a4"
+signature = "https://ftp.gnu.org/gnu/readline/readline-8.3-patches/readline83-006.sig"
+signing_keys = ["7C0135FB088AAF6C66C650B9BB5869F064EA74AB"]
+
+# Package. Based on LFS 13.1 chapter 8.12. Differences: the six official
+# upstream patches are applied first; LFS's input.c sed ("Fix a problem
+# identified upstream") is dropped because readline83-001 makes the same
+# change; unversioned docdir; the optional doc install is skipped. LFS's seds
+# against the .old renaming and the rpath are kept. No test suite.
+[build]
+style = "gnu-configure"
+depends = ["ncurses", "texinfo"]
+check = false  # no test suite (LFS 13.1)
+configure_args = ["--disable-static", "--with-curses"]
+make_args = ["SHLIB_LIBS=-lncursesw"]
+prepare = '''
+for p in "$KEL_SOURCEDIR"/readline83-*; do
+  patch -p0 -i "$p"
+done
+sed -i '/MV.*old/d' Makefile.in
+sed -i '/{OLDSUFF}/c:' support/shlib-install
+sed -i 's/-Wl,-rpath,[^ ]*//' support/shobj-conf
+'''

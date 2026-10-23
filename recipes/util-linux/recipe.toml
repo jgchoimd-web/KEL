@@ -1,0 +1,67 @@
+[package]
+name = "util-linux"
+version = "2.42.4"
+revision = 0
+summary = "Essential Linux system utilities and libraries (libblkid, libmount, libuuid)"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://github.com/util-linux/util-linux"
+
+# kernel.org signs the uncompressed tarball.
+[[source]]
+url = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.xz"
+sha256 = "fbd62a100ab7bb8746ba0661255c3c48185b1e9021507c624da01fbc696330ec"
+signature = "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.sign"
+signature_type = "detached-uncompressed"
+signing_keys = ["B0C64D14301CC6EFAEDF60E4E4B71D5EEC39C284"]  # Karel Zak
+
+# Stage 3. Based on LFS 13.1 chapter 7.14. --disable-makeinstall-chown: the
+# sandbox maps only uid/gid 0, so install's "chgrp tty" on wall would fail.
+[bootstrap.stage3]
+script = '''
+mkdir -pv /var/lib/hwclock
+./configure --libdir=/usr/lib \
+            --runstatedir=/run \
+            --disable-chfn-chsh \
+            --disable-login \
+            --disable-nologin \
+            --disable-su \
+            --disable-setpriv \
+            --disable-runuser \
+            --disable-pylibmount \
+            --disable-static \
+            --disable-liblastlog2 \
+            --without-python \
+            --disable-makeinstall-chown \
+            ADJTIME_PATH=/var/lib/hwclock/adjtime \
+            --docdir="/usr/share/doc/util-linux-$KEL_VERSION_UTIL_LINUX"
+make
+make install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.81 with KEL's paths: programs in
+# /usr/bin (kel passes --sbindir=/usr/bin; util-linux still installs some
+# programs into /usr/sbin, which kel merges into /usr/bin), --bindir and
+# --libdir as in LFS so nothing goes to /bin or /lib, no --docdir version.
+# The same --disable list as LFS (login, su, nologin and chfn/chsh are
+# shadow's; setpriv needs libcap-ng and runuser PAM; no Python bindings, no
+# lastlog2). util-linux provides kill, fsck, uuidd, libblkid, libuuid and
+# libmount. --disable-makeinstall-chown:
+# make install would chgrp wall to tty, which fails in the sandbox; KEL ships
+# all files root-owned (mount and umount are still made setuid root; wall is
+# not setgid tty, which can be set at install time later). hwclock keeps its
+# state in /var/lib/hwclock (ADJTIME_PATH, as in LFS), shipped as an empty
+# directory. No tests: LFS runs them as the unprivileged `tester` user.
+[build]
+style = "gnu-configure"
+configure_args = ["--bindir=/usr/bin", "--libdir=/usr/lib", "--runstatedir=/run",
+                  "--disable-chfn-chsh", "--disable-login", "--disable-nologin",
+                  "--disable-su", "--disable-setpriv", "--disable-runuser",
+                  "--disable-pylibmount", "--disable-liblastlog2", "--disable-static",
+                  "--without-python", "--disable-makeinstall-chown",
+                  "ADJTIME_PATH=/var/lib/hwclock/adjtime"]
+check = false
+depends = ["pkgconf", "ncurses", "readline", "file", "libxcrypt", "systemd", "gettext",
+           "linux-headers"]
+post_install = '''
+install -d -m755 "$DESTDIR"/var/lib/hwclock
+'''

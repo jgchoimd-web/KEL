@@ -1,0 +1,34 @@
+[package]
+name = "acl"
+version = "2.4.0"
+revision = 0
+summary = "Library and tools for POSIX access control lists"
+license = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+homepage = "https://savannah.nongnu.org/projects/acl"
+
+[[source]]
+url = "https://download.savannah.gnu.org/releases/acl/acl-2.4.0.tar.xz"
+sha256 = "e661131456d2708a01c614a0f400e11d7d1bfaeb6f3e74b75bb980b72f0161a3"
+signature = "https://download.savannah.gnu.org/releases/acl/acl-2.4.0.tar.xz.sig"
+signing_keys = ["259B3792B3D6D319212CC4DCD5BF9FEB0313653A"]  # Andreas Gruenbacher
+
+# Package. Based on LFS 13.1 chapter 8.27 (built out of tree; perl runs the
+# test driver). Tests: only those that can work in the build sandbox, which
+# maps a single uid/gid. ACL entries for other users and groups (bin,
+# daemon, ... from the test passwd/group files) are rejected with EINVAL
+# there (checked 2026-10-22), and su/chown to other users fail, so
+# misc.run, setfacl-X.run, cp.run and test/root/*.run cannot pass; cp.run is
+# also LFS 13.1's known failure (Coreutils without ACL support yet). The
+# NFS tests are expected failures anyway. The license texts live in doc/,
+# so they are installed by hand.
+[build]
+style = "gnu-configure"
+depends = ["attr", "perl", "gettext"]
+configure_args = ["--disable-static"]
+test = '''
+cd build
+make check TESTS="test/getfacl-lfs.run test/getfacl-noacl.run test/getfacl-recursive.run test/malformed-restore.run test/restore.run test/sbits-restore.run test/utf8-filenames.run"
+'''
+post_install = '''
+install -Dm644 -t "$DESTDIR"/usr/share/licenses/acl doc/COPYING doc/COPYING.LGPL
+'''

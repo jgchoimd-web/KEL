@@ -1,0 +1,44 @@
+[package]
+name = "coreutils"
+version = "9.12"
+revision = 0
+summary = "GNU core utilities"
+license = "GPL-3.0-or-later"
+homepage = "https://www.gnu.org/software/coreutils/"
+
+[[source]]
+url = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz"
+sha256 = "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+signature = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz.sig"
+signing_keys = ["6C37DC12121A5006BC1DB804DF6FD971306037D9"]  # Pádraig Brady
+
+# Stage 2: cross compiled temporary tool, installed into the sysroot.
+# Based on LFS 13.1 chapter 6.
+# LFS moves chroot to /usr/sbin; KEL merges sbin into bin, so it stays.
+[bootstrap.stage2]
+script = '''
+./configure --prefix=/usr \
+            --host="$KEL_TARGET" \
+            --build="$(build-aux/config.guess)" \
+            --enable-install-program=hostname \
+            --enable-no-install-program=kill,uptime
+make
+make DESTDIR="$KEL_SYSROOT" install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.61, without LFS's coreutils-i18n patch
+# (not from upstream; LFS itself warns about its bugs), so the autoreconf and
+# automake -af steps it needs are dropped too. FORCE_UNSAFE_CONFIGURE=1 (as in
+# LFS) lets configure run as uid 0; configure exports VAR=value arguments.
+# hostname is installed because KEL has no inetutils; kill and uptime belong
+# to util-linux and procps-ng (coreutils 9.10+ leaves them out by default, the
+# option documents it). chroot stays in /usr/bin with its man page in man1
+# (sbin is merged). No tests: LFS runs most of the suite as the unprivileged
+# `tester` user (with a second group) and the root-only tests chown to other
+# uids; the sandbox maps only uid 0 and has no capabilities.
+[build]
+style = "gnu-configure"
+configure_args = ["FORCE_UNSAFE_CONFIGURE=1", "--enable-install-program=hostname",
+                  "--enable-no-install-program=kill,uptime"]
+check = false
+depends = ["acl", "attr", "libcap", "gmp", "openssl", "perl"]

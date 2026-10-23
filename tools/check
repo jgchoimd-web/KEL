@@ -1,0 +1,7 @@
+#!/bin/sh
+# Fast checks to run before every commit (and in CI): unit tests and recipe lint.
+set -eu
+cd "$(dirname "$0")/.."
+PYTHONPATH=tools python3 -W error::ResourceWarning -m unittest discover -s tools/tests "$@"
+./kel lint > /dev/null
+echo "check: OK"

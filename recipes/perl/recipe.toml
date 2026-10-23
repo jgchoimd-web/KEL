@@ -1,0 +1,99 @@
+[package]
+name = "perl"
+version = "5.44.0"
+revision = 0
+summary = "Practical Extraction and Report Language"
+license = "Artistic-1.0-Perl OR GPL-1.0-or-later"
+homepage = "https://www.perl.org/"
+
+# CPAN does not sign the tarball itself; PAUSE clearsigns the uploader's
+# CHECKSUMS file, which must list this file with this sha256. The key
+# published on pause.perl.org lacked the 2026 subkey; the refreshed copy of
+# the same primary came from keyserver.ubuntu.com (checked 2026-10-22).
+[[source]]
+url = "https://www.cpan.org/src/5.0/perl-5.44.0.tar.xz"
+sha256 = "505cf43912e9480495c344c70260452e32aa2a73c546a026b3f100053b23ce91"
+signature = "https://www.cpan.org/authors/id/L/LE/LEONT/CHECKSUMS"
+signature_type = "clearsigned-checksums"
+signing_keys = ["2E66557AB97C19C791AF8E20328DA867450F89EC"]  # PAUSE Batch Signing Key
+
+# Stage 3. Based on LFS 13.1 chapter 7.9 with the 5.44 library paths
+# (LFS: "the MAJOR.MINOR version of Perl").
+[bootstrap.stage3]
+script = '''
+v="${KEL_VERSION_PERL%.*}"
+sh Configure -des \
+             -D prefix=/usr \
+             -D vendorprefix=/usr \
+             -D useshrplib \
+             -D privlib="/usr/lib/perl5/$v/core_perl" \
+             -D archlib="/usr/lib/perl5/$v/core_perl" \
+             -D sitelib="/usr/lib/perl5/$v/site_perl" \
+             -D sitearch="/usr/lib/perl5/$v/site_perl" \
+             -D vendorlib="/usr/lib/perl5/$v/vendor_perl" \
+             -D vendorarch="/usr/lib/perl5/$v/vendor_perl"
+make
+make install
+'''
+
+# Package. Based on LFS 13.1 chapter 8.46, with the library paths derived
+# from the version like the stage3 profile. KEL deviations: Configure ignores
+# $CFLAGS, so KEL's compiler flags are passed as optimize (they also become
+# the flags for XS modules built later); installed into DESTDIR; the license
+# files are named Copying and Artistic, so they are installed here.
+[build]
+style = "make"
+depends = ["zlib", "bzip2", "gdbm", "libxcrypt"]
+configure = '''
+v="${KEL_VERSION_PERL%.*}"
+sh Configure -des \
+             -D prefix=/usr \
+             -D vendorprefix=/usr \
+             -D privlib="/usr/lib/perl5/$v/core_perl" \
+             -D archlib="/usr/lib/perl5/$v/core_perl" \
+             -D sitelib="/usr/lib/perl5/$v/site_perl" \
+             -D sitearch="/usr/lib/perl5/$v/site_perl" \
+             -D vendorlib="/usr/lib/perl5/$v/vendor_perl" \
+             -D vendorarch="/usr/lib/perl5/$v/vendor_perl" \
+             -D man1dir=/usr/share/man/man1 \
+             -D man3dir=/usr/share/man/man3 \
+             -D pager="/usr/bin/less -isR" \
+             -D optimize="$CFLAGS" \
+             -D useshrplib \
+             -D usethreads
+# libperl.so has no SONAME, so the NEEDED libperl.so of /usr/bin/perl would
+# match no so: provide (kel takes them from DT_SONAME) and the package would
+# depend on a name nothing provides. Give it its file name as SONAME (no
+# change at run time).
+sed -i 's/^SHRPLDFLAGS = .*/& -Wl,-soname,$(LIBPERL)/' makefile
+'''
+# LFS: Compress::Raw::Zlib and Compress::Raw::Bzip2 use the system zlib and
+# bzip2 instead of their bundled copies (read when the extensions are
+# configured during make).
+compile = '''
+export BUILD_ZLIB=False BUILD_BZIP2=0
+make
+readelf -d libperl.so | grep -q 'SONAME.*\[libperl\.so\]'
+'''
+# Two test files need more ids than the build sandbox maps (only uid/gid 0):
+# op/groups.t (setgroups with the daemon group) and File-Path's Path_root.t
+# (chown to 65534). They are allowed to fail; any other failure fails the
+# build.
+test = '''
+st=0
+TEST_JOBS="$KEL_JOBS" make test_harness 2>&1 | tee test_harness.log || st=$?
+if [ "$st" -ne 0 ]; then
+    failed=$(sed -n '/^Test Summary Report/,/^Files=/s/^\([^ ][^ ]*\.t\) .*(Wstat.*/\1/p' \
+             test_harness.log)
+    unexpected=$(printf '%s\n' "$failed" |
+                 grep -vx -e 'op/groups.t' -e '../cpan/File-Path/t/Path_root.t' || true)
+    if [ -z "$failed" ] || [ -n "$unexpected" ]; then
+        echo "perl: unexpected test failures: ${unexpected:-see the harness output}"
+        exit 1
+    fi
+    echo "perl: only the known sandbox failures: $(echo $failed)"
+fi
+'''
+post_install = '''
+install -vDm644 -t "$DESTDIR/usr/share/licenses/perl" Copying Artistic
+'''

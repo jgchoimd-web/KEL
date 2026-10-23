@@ -1,0 +1,32 @@
+[package]
+name = "scdoc"
+version = "1.11.5"
+revision = 0
+summary = "Man page generator for a simple markdown-like syntax"
+license = "MIT"
+homepage = "https://git.sr.ht/~sircmpwn/scdoc"
+
+# Upstream publishes no signature (the tag 1.11.5 is not signed). git.sr.ht's
+# archive endpoint returned errors, so the file was recreated with
+# `git archive --prefix=scdoc-1.11.5/` of tag 1.11.5 (commit
+# 24be30ef17d5ca0162f11b35258c8fa2413d556a) from
+# https://git.sr.ht/~sircmpwn/scdoc; its sha512 equals the one Arch Linux's
+# scdoc 1.11.5 PKGBUILD records for this URL (checked 2026-10-22).
+[[source]]
+url = "https://git.sr.ht/~sircmpwn/scdoc/archive/1.11.5.tar.gz"
+filename = "scdoc-1.11.5.tar.gz"
+sha256 = "98780bbdf16c1bce89ef3a8c0f537ac6e4ea77087b609e7698857614488a2a62"
+
+# Package. Not in LFS: built before kmod and apk-tools, whose man pages are
+# written in scdoc. Plain Makefile (PREFIX=/usr). make check prints FAIL for a
+# failed test but always exits 0, so the test phase checks the output.
+[build]
+style = "make"
+make_args = ["PREFIX=/usr"]
+test = '''
+make check 2>&1 | tee check.log
+if grep -q 'FAIL$' check.log; then
+    echo "scdoc: test failures"
+    exit 1
+fi
+'''

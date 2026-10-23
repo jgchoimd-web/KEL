@@ -1,0 +1,27 @@
+[package]
+name = "lz4"
+version = "1.10.0"
+revision = 0
+summary = "Extremely fast lossless compression (liblz4 and the lz4 tool)"
+license = "BSD-2-Clause AND GPL-2.0-or-later"
+homepage = "https://github.com/lz4/lz4"
+
+# No signature is published. The sha256 equals the release's own
+# lz4-1.10.0.tar.gz.sha256 asset (checked 2026-10-22).
+[[source]]
+url = "https://github.com/lz4/lz4/releases/download/v1.10.0/lz4-1.10.0.tar.gz"
+sha256 = "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b"
+
+# Package. Based on LFS 13.1 chapter 8.9. The top-level LICENSE only says
+# which licence covers which directory, so the library's BSD-2-Clause text
+# and the programs' GPL-2.0 text are shipped with it.
+[build]
+style = "make"
+depends = ["python"]  # used by the test suite
+make_args = ["BUILD_STATIC=no", "PREFIX=/usr"]
+test = "make -j1 check"
+post_install = '''
+install -Dm644 LICENSE "$DESTDIR"/usr/share/licenses/lz4/LICENSE
+install -Dm644 lib/LICENSE "$DESTDIR"/usr/share/licenses/lz4/LICENSE.lib
+install -Dm644 programs/COPYING "$DESTDIR"/usr/share/licenses/lz4/COPYING.programs
+'''

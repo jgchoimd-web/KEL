@@ -1,0 +1,32 @@
+[package]
+name = "pcre2"
+version = "10.49"
+revision = 0
+summary = "Perl-compatible regular expression library"
+license = "BSD-3-Clause WITH PCRE2-exception AND BSD-2-Clause"
+homepage = "https://github.com/PCRE2Project/pcre2"
+
+# The signing key's fingerprint is published in the project's SECURITY.md
+# (releases from 10.45 on are signed by Nicholas Wilson).
+[[source]]
+url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.tar.bz2"
+sha256 = "53c156e1ba416a20da8e65395daa132da0d80e76910424caca3fcdae7831d384"
+signature = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.tar.bz2.sig"
+signing_keys = ["A95536204A3BB489715231282A98E77EB6F24CA8"]  # Nicholas Wilson
+
+# Package. Based on LFS 13.1 chapter 8.13 (KEL: unversioned docdir). The
+# tarball's patches/ directory holds backports for older releases; 10.49
+# already contains them.
+[build]
+style = "gnu-configure"
+depends = ["bzip2", "readline", "zlib"]
+configure_args = [
+    "--enable-unicode",
+    "--enable-jit",
+    "--enable-pcre2-16",
+    "--enable-pcre2-32",
+    "--enable-pcre2grep-libz",
+    "--enable-pcre2grep-libbz2",
+    "--enable-pcre2test-libreadline",
+    "--disable-static",
+]

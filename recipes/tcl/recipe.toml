@@ -1,0 +1,94 @@
+[package]
+name = "tcl"
+version = "8.6.18"
+revision = 0
+summary = "Tool Command Language: scripting language, shell and library"
+# Tcl, Thread, Itcl and TDBC: TCL; bundled libtommath: Unlicense; bundled
+# SQLite extension: blessing.
+license = "TCL AND Unlicense AND blessing"
+homepage = "https://www.tcl-lang.org/"
+
+# Tcl publishes no signatures. The sha256 was cross-checked on 2026-10-22:
+# the MD5 and SHA-1 in the SourceForge file listing and the MD5 in LFS 13.1
+# belong to this file.
+[[source]]
+url = "https://downloads.sourceforge.net/tcl/tcl8.6.18-src.tar.gz"
+sha256 = "14f9af32b1767ff718477a8f974ad03c34341097e6b43f4ce54644ee974e268e"
+
+# Package. Based on LFS 13.1 chapter 8.17 (Tcl, Expect and DejaGnu run the
+# binutils and GCC test suites). Deviations from LFS:
+# - --without-tzdata: Tcl uses the system zoneinfo (tzdata package). LFS gets
+#   the same from configure's autodetection; this keeps the result
+#   independent of what the build root contains.
+# - The optional HTML documentation (a separate tarball) is not installed.
+# - libtcl8.6.so gets a SONAME (see configure).
+# - The license texts are installed by hand: they are called license.terms,
+#   which kel's COPYING*/LICENSE* rule does not pick up.
+# libtclstub8.6.a and the stub libraries of the bundled packages are kept,
+# as in LFS: Tcl extensions link them (Tcl's stubs mechanism).
+[build]
+style = "custom"
+depends = ["zlib"]
+configure = '''
+cd unix
+./configure --prefix=/usr --mandir=/usr/share/man --disable-rpath --without-tzdata
+# KEL: give libtcl8.6.so a SONAME, its own file name. Upstream (and LFS)
+# link it without one, but kel takes a package's so: provides from
+# DT_SONAME, so tclsh8.6 and Expect would depend on an so:libtcl8.6.so that
+# no package provides. TCL_SHLIB_LD_EXTRAS is the Makefile's hook for extra
+# flags on the libtcl link only (configure puts -install_name there on
+# macOS). Programs keep DT_NEEDED libtcl8.6.so, as before.
+sed -i 's/^TCL_SHLIB_LD_EXTRAS[[:space:]]*=.*/TCL_SHLIB_LD_EXTRAS = -Wl,-soname,$(TCL_LIB_FILE)/' Makefile
+grep -q '^TCL_SHLIB_LD_EXTRAS = -Wl,-soname' Makefile
+'''
+compile = '''
+srcdir=$KEL_SRCDIR
+cd unix
+# kel exports DESTDIR to every phase, but Tcl compiles $(DESTDIR)-prefixed
+# install paths into ::tcl::pkgconfig (tclPkgConfig.c): build with it empty.
+make DESTDIR=
+# Make the *Config.sh files point at the installed locations instead of the
+# build tree (LFS: packages built later against Tcl may need them).
+tdbc=tdbc1.1.13
+itcl=itcl4.3.7
+sed -e "s|$srcdir/unix|/usr/lib|" \
+    -e "s|$srcdir|/usr/include|" \
+    -i tclConfig.sh
+sed -e "s|$srcdir/unix/pkgs/$tdbc|/usr/lib/$tdbc|" \
+    -e "s|$srcdir/pkgs/$tdbc/generic|/usr/include|" \
+    -e "s|$srcdir/pkgs/$tdbc/library|/usr/lib/tcl8.6|" \
+    -e "s|$srcdir/pkgs/$tdbc|/usr/include|" \
+    -i pkgs/$tdbc/tdbcConfig.sh
+sed -e "s|$srcdir/unix/pkgs/$itcl|/usr/lib/$itcl|" \
+    -e "s|$srcdir/pkgs/$itcl/generic|/usr/include|" \
+    -e "s|$srcdir/pkgs/$itcl|/usr/include|" \
+    -i pkgs/$itcl/itclConfig.sh
+'''
+# Tcl's test target reports failures but does not fail on them (LFS runs it
+# as root, like here).
+test = '''
+cd unix
+LC_ALL=C.UTF-8 make test
+'''
+install = '''
+cd unix
+make DESTDIR="$DESTDIR" install
+chmod 644 "$DESTDIR"/usr/lib/libtclstub8.6.a
+# make install leaves the library read-only (0555); LFS makes it writable so
+# that it can be stripped.
+chmod u+w "$DESTDIR"/usr/lib/libtcl8.6.so
+# Expect needs Tcl's private headers.
+make DESTDIR="$DESTDIR" install-private-headers
+ln -sv tclsh8.6 "$DESTDIR"/usr/bin/tclsh
+# Thread.3 would conflict with a Perl man page.
+mv -v "$DESTDIR"/usr/share/man/man3/{Thread,Tcl_Thread}.3
+'''
+post_install = '''
+lic="$DESTDIR/usr/share/licenses/tcl"
+install -Dm644 license.terms "$lic/license.terms"
+install -Dm644 libtommath/LICENSE "$lic/libtommath-LICENSE"
+for d in pkgs/*/; do
+    p=$(basename "$d")
+    install -Dm644 "$d/license.terms" "$lic/$p-license.terms"
+done
+'''
